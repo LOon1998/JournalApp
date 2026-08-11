@@ -34,6 +34,12 @@ class AppState extends ChangeNotifier {
     _persist();
   }
 
+  void deleteEntry(String id) {
+    _entries.removeWhere((e) => e.id == id);
+    notifyListeners();
+    _persist();
+  }
+
   void setThemeMode(ThemeMode mode) {
     themeMode = mode;
     notifyListeners();

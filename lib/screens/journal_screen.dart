@@ -294,45 +294,70 @@ class _TimelineRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: scheme.surfaceContainerHighest),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: entry.mood.swatch,
-            child: Icon(entry.mood.icon, size: 18, color: entry.mood.onSwatch),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Dismissible(
+        key: ValueKey(entry.id),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          alignment: Alignment.centerRight,
+          decoration: BoxDecoration(
+            color: scheme.errorContainer,
+            borderRadius: BorderRadius.circular(20),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Icon(Icons.delete_outline, color: scheme.onErrorContainer),
+        ),
+        onDismissed: (_) {
+          final appState = AppStateScope.of(context);
+          appState.deleteEntry(entry.id);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Entry deleted'),
+              action: SnackBarAction(label: 'Undo', onPressed: () => appState.addEntry(entry)),
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerLow.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: scheme.surfaceContainerHighest),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: entry.mood.swatch,
+                child: Icon(entry.mood.icon, size: 18, color: entry.mood.onSwatch),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(entry.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                    Text(DateFormat('h:mm a').format(entry.dateTime),
-                        style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(entry.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                        Text(DateFormat('h:mm a').format(entry.dateTime),
+                            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                      ],
+                    ),
+                    if (entry.text.isNotEmpty)
+                      Text(
+                        entry.text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                      ),
                   ],
                 ),
-                if (entry.text.isNotEmpty)
-                  Text(
-                    entry.text,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-                  ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
