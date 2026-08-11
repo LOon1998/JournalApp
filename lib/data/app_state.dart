@@ -20,12 +20,20 @@ class AppState extends ChangeNotifier {
   String userEmail = 'alex.journal@example.com';
 
   final List<JournalEntry> _entries = [];
+
+  /// Live (non-deleted) entries, newest first.
   List<JournalEntry> get entries => List.unmodifiable(
-        _entries..sort((a, b) => b.dateTime.compareTo(a.dateTime)),
+        _entries.where((e) => !e.isDeleted).toList()..sort((a, b) => b.dateTime.compareTo(a.dateTime)),
+      );
+
+  /// Soft-deleted entries, most recently deleted first — backs the
+  /// "Deleted Entries" history screen.
+  List<JournalEntry> get deletedEntries => List.unmodifiable(
+        _entries.where((e) => e.isDeleted).toList()..sort((a, b) => b.deletedAt!.compareTo(a.deletedAt!)),
       );
 
   List<JournalEntry> entriesOn(DateTime day) =>
-      _entries.where((e) => e.isSameDay(day)).toList()
+      _entries.where((e) => !e.isDeleted && e.isSameDay(day)).toList()
         ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
 
   void addEntry(JournalEntry entry) {
@@ -34,8 +42,34 @@ class AppState extends ChangeNotifier {
     _persist();
   }
 
+  /// Soft-delete: hides the entry from the timeline/calendar/insights but
+  /// keeps it around so it can be restored from history.
   void deleteEntry(String id) {
-    _entries.removeWhere((e) => e.id == id);
+    _replaceEntry(id, (e) => e.copyWith(deletedAt: DateTime.now()));
+  }
+
+  void restoreEntry(String id) {
+    _replaceEntry(id, (e) => e.copyWith(clearDeletedAt: true));
+  }
+
+  /// Removes a soft-deleted entry for good. No-op if it isn't deleted.
+  void permanentlyDeleteEntry(String id) {
+    _entries.removeWhere((e) => e.id == id && e.isDeleted);
+    notifyListeners();
+    _persist();
+  }
+
+  /// Empties the entire "Deleted Entries" history in one go.
+  void clearDeletedEntries() {
+    _entries.removeWhere((e) => e.isDeleted);
+    notifyListeners();
+    _persist();
+  }
+
+  void _replaceEntry(String id, JournalEntry Function(JournalEntry) transform) {
+    final index = _entries.indexWhere((e) => e.id == id);
+    if (index == -1) return;
+    _entries[index] = transform(_entries[index]);
     notifyListeners();
     _persist();
   }
@@ -171,6 +205,7 @@ class AppState extends ChangeNotifier {
         'text': e.text,
         'tags': e.tags,
         'activities': e.activities,
+        'deletedAt': e.deletedAt?.toIso8601String(),
       };
 
   JournalEntry _entryFromJson(Map<String, dynamic> j) => JournalEntry(
@@ -181,6 +216,7 @@ class AppState extends ChangeNotifier {
         text: j['text'] as String? ?? '',
         tags: (j['tags'] as List<dynamic>? ?? []).cast<String>(),
         activities: (j['activities'] as List<dynamic>? ?? []).cast<String>(),
+        deletedAt: j['deletedAt'] != null ? DateTime.parse(j['deletedAt'] as String) : null,
       );
 }
 

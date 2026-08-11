@@ -33,6 +33,11 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Local Flutter SDK checkout (this machine's PATH points here — never commit
+# a ~2GB copy of the SDK into the repo).
+/flutter/
+devtools_options.yaml
+
 # Symbolication related
 app.*.symbols
 

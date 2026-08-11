@@ -3,7 +3,6 @@ import '../data/app_state.dart';
 import '../widgets/aura_fab.dart';
 import '../widgets/lumina_bottom_nav.dart';
 import '../widgets/lumina_top_bar.dart';
-import 'aura_chat_screen.dart';
 import 'calendar_screen.dart';
 import 'insights_screen.dart';
 import 'journal_screen.dart';
@@ -32,11 +31,7 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
     return Scaffold(
-      appBar: LuminaTopBar(
-        onAuraTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const AuraChatScreen()),
-        ),
-      ),
+      appBar: const LuminaTopBar(),
       body: Stack(
         children: [
           IndexedStack(index: _index, children: _tabs),

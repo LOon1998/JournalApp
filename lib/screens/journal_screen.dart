@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../data/app_state.dart';
 import '../models/journal_entry.dart';
 import '../theme/app_theme.dart';
+import 'deleted_entries_screen.dart';
 
 const _journalThemes = <String, Color>{
   'Sunset': Color(0xFFFBD6B0),
@@ -74,10 +75,31 @@ class _JournalScreenState extends State<JournalScreen> {
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("Today's Timeline", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
-            Text('${todaysEntries.length} ${todaysEntries.length == 1 ? "entry" : "entries"}',
-                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('${todaysEntries.length} ${todaysEntries.length == 1 ? "entry" : "entries"}',
+                    style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                InkWell(
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const DeletedEntriesScreen()),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.history, size: 14, color: scheme.primary),
+                      const SizedBox(width: 2),
+                      Text('History',
+                          style: TextStyle(color: scheme.primary, fontSize: 12, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
         const SizedBox(height: 8),
@@ -308,14 +330,27 @@ class _TimelineRow extends StatelessWidget {
           ),
           child: Icon(Icons.delete_outline, color: scheme.onErrorContainer),
         ),
-        onDismissed: (_) {
-          final appState = AppStateScope.of(context);
-          appState.deleteEntry(entry.id);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Entry deleted'),
-              action: SnackBarAction(label: 'Undo', onPressed: () => appState.addEntry(entry)),
+        confirmDismiss: (_) async {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Delete entry?'),
+              content: Text('Remove "${entry.title}" from your timeline? You can restore it later from History.'),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('No')),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: Text('Yes, delete', style: TextStyle(color: scheme.error)),
+                ),
+              ],
             ),
+          );
+          return confirmed ?? false;
+        },
+        onDismissed: (_) {
+          AppStateScope.of(context).deleteEntry(entry.id);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Entry deleted')),
           );
         },
         child: Container(

@@ -16,6 +16,7 @@ class JournalEntry {
     this.text = '',
     this.tags = const [],
     this.activities = const [],
+    this.deletedAt,
   });
 
   final String id;
@@ -28,6 +29,24 @@ class JournalEntry {
   final List<String> tags;
   final List<String> activities;
 
+  /// Non-null when this entry has been soft-deleted — it's hidden from the
+  /// timeline/calendar/insights but kept around so it can be restored from
+  /// the Deleted Entries history screen.
+  final DateTime? deletedAt;
+
+  bool get isDeleted => deletedAt != null;
+
   bool isSameDay(DateTime other) =>
       dateTime.year == other.year && dateTime.month == other.month && dateTime.day == other.day;
+
+  JournalEntry copyWith({DateTime? deletedAt, bool clearDeletedAt = false}) => JournalEntry(
+        id: id,
+        dateTime: dateTime,
+        mood: mood,
+        title: title,
+        text: text,
+        tags: tags,
+        activities: activities,
+        deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
+      );
 }

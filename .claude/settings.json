@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter analyze *)",
+      "Bash(flutter analyze)",
+      "Bash(flutter test *)",
+      "Bash(flutter test)",
+      "Bash(flutter doctor *)",
+      "Bash(flutter doctor)",
+      "Bash(flutter --version)",
+      "Bash(flutter devices)",
+      "Bash(flutter emulators)",
+      "Bash(flutter pub outdated)"
+    ]
+  }
+}

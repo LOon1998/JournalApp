@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import '../data/app_state.dart';
 import '../screens/settings_screen.dart';
 
 /// The `<header>` shared by every screen: avatar, "Lumina" wordmark,
-/// Aura shortcut, settings gear.
+/// an Aura companion on/off switch, and the settings gear.
+///
+/// The bubble_chart button does *not* open the chat — it toggles whether
+/// the floating Aura button is shown at all, same as the "Enable Aura"
+/// switch on the Settings screen. To actually chat with Aura, tap the
+/// floating bubble itself.
 class LuminaTopBar extends StatelessWidget implements PreferredSizeWidget {
-  const LuminaTopBar({super.key, this.onAuraTap});
-
-  final VoidCallback? onAuraTap;
+  const LuminaTopBar({super.key});
 
   @override
   Size get preferredSize => const Size.fromHeight(64);
@@ -14,6 +18,7 @@ class LuminaTopBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final appState = AppStateScope.of(context);
     return SafeArea(
       bottom: false,
       child: Padding(
@@ -39,9 +44,12 @@ class LuminaTopBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ),
             IconButton(
-              onPressed: onAuraTap,
-              icon: Icon(Icons.bubble_chart, color: scheme.primary),
-              tooltip: 'Aura',
+              onPressed: () => appState.setAuraEnabled(!appState.auraEnabled),
+              icon: Icon(
+                Icons.bubble_chart,
+                color: appState.auraEnabled ? scheme.primary : scheme.outlineVariant,
+              ),
+              tooltip: appState.auraEnabled ? 'Hide Aura companion' : 'Show Aura companion',
             ),
             IconButton(
               onPressed: () => Navigator.of(context).push(

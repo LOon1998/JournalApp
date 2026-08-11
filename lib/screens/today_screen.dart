@@ -71,22 +71,18 @@ class _TodayScreenState extends State<TodayScreen> {
               ),
         ),
         const SizedBox(height: 24),
-        SizedBox(
-          height: 132,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: Mood.values.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              final mood = Mood.values[index];
-              final selected = _selectedMood == mood;
-              return _MoodOption(
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            for (final mood in Mood.values)
+              _MoodOption(
                 mood: mood,
-                selected: selected,
+                selected: _selectedMood == mood,
                 onTap: () => setState(() => _selectedMood = mood),
-              );
-            },
-          ),
+              ),
+          ],
         ),
         const SizedBox(height: 32),
         FloatingCard(
