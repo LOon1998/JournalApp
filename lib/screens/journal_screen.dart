@@ -9,16 +9,11 @@ import '../widgets/app_snackbar.dart';
 import '../widgets/entries_history_row.dart';
 import '../widgets/mini_chip.dart';
 import '../widgets/photo_tile.dart';
+import '../widgets/theme_swatch.dart';
 import '../widgets/voice_note_player.dart';
 import '../widgets/voice_recorder_sheet.dart';
 import 'deleted_entries_screen.dart';
 import 'entry_detail_screen.dart';
-
-const _journalThemes = <String, Color>{
-  'Sunset': Color(0xFFFBD6B0),
-  'Sage': Color(0xFFD6E4C0),
-  'Sky': Color(0xFFBFDBFE),
-};
 
 class JournalScreen extends StatefulWidget {
   const JournalScreen({super.key});
@@ -41,7 +36,10 @@ class _JournalScreenState extends State<JournalScreen> {
   final _textController = TextEditingController();
   final _titleController = TextEditingController();
   Mood _mood = Mood.good;
-  String? _themeName;
+  // Only ever set once, here — after that it just carries over from
+  // whatever was last picked (see _complete(), which deliberately
+  // doesn't reset it), same in light or dark mode.
+  String? _themeName = defaultJournalTheme;
   final Set<String> _tags = {};
   final List<String> _photos = [];
   String? _voiceNote;
@@ -50,15 +48,59 @@ class _JournalScreenState extends State<JournalScreen> {
 
   static const _tagOptions = ['Family', 'Work', 'Health'];
 
-  // Briefly highlights (and scrolls to) an entry just created elsewhere
-  // via "Save Mood Only" (see AppState.addQuickEntry) — a GlobalKey per
-  // entry so the highlighted one's on-screen position can be found once
-  // it's actually built. Created lazily and never pruned; harmless since
-  // it just maps entry ids to small, cheap key objects.
-  String? _highlightedEntryId;
-  final Map<String, GlobalKey> _entryKeys = {};
+  // Today's entries show in pages of up to this many (prev/next + dots
+  // between pages) rather than as one long scrolling list, or one entry
+  // per page — with the 10/day cap that's 2 pages at most.
+  static const _entriesPerPage = 5;
 
-  GlobalKey _keyFor(String id) => _entryKeys.putIfAbsent(id, () => GlobalKey());
+  // null means "not navigated yet", which resolves to the page holding
+  // the most recent entry (see build()).
+  int? _currentPageIndex;
+
+  // Briefly highlights whichever entry was just created (by "Complete
+  // Entry" here, or "Save Mood Only" elsewhere — see AppState.
+  // addQuickEntry) so it's obvious exactly where it landed.
+  String? _highlightedEntryId;
+
+  // Scroll target for "Complete Entry" — the only action that navigates
+  // the screen for you, bringing today's entries back into view.
+  final _carouselKey = GlobalKey();
+
+  void _scrollTo(GlobalKey key) {
+    // Complete Entry is pressed straight out of the text field, keyboard
+    // still open — its dismiss animation was still resizing the screen
+    // when this ran, throwing off ensureVisible's math (and on a short
+    // screen, competing with it for the same space). Unfocus first and
+    // give the keyboard's own animation time to finish before measuring
+    // anything.
+    FocusScope.of(context).unfocus();
+    Future.delayed(const Duration(milliseconds: 300), () {
+      final targetContext = key.currentContext;
+      if (targetContext != null && targetContext.mounted) {
+        // alignment: 0 anchors the target to the *top* of the viewport
+        // (not centered) — "Save & Write Journal" should land right at
+        // the composer heading, and "Complete Entry" right at the top of
+        // today's entries, not somewhere in the middle of the screen.
+        Scrollable.ensureVisible(targetContext,
+            duration: const Duration(milliseconds: 400), curve: Curves.easeOut, alignment: 0);
+      }
+    });
+  }
+
+  void _goToPage(int page) {
+    // Just switches pages in place — no scrolling/anchoring. The
+    // reflowed content below (Daily Reflection, Journal Reflection, ...)
+    // shifting slightly is expected/fine; jumping the scroll position on
+    // every next/prev tap was the more jarring behavior.
+    setState(() => _currentPageIndex = page);
+  }
+
+  void _highlight(String entryId) {
+    setState(() => _highlightedEntryId = entryId);
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted && _highlightedEntryId == entryId) setState(() => _highlightedEntryId = null);
+    });
+  }
 
   @override
   void didChangeDependencies() {
@@ -80,22 +122,15 @@ class _JournalScreenState extends State<JournalScreen> {
     }
 
     // Picks up the id staged by "Save Mood Only" (see
-    // AppState.addQuickEntry) — scrolls to that entry once it's on
-    // screen and highlights it for a couple seconds so it's obvious
-    // exactly where the quick save landed.
+    // AppState.addQuickEntry) — shows it as the current entry and
+    // scrolls/highlights it for a couple seconds so it's obvious exactly
+    // where the quick save landed, same as "Complete Entry" does.
     final justAddedId = appState.takeJustAddedEntryId();
     if (justAddedId != null) {
-      setState(() => _highlightedEntryId = justAddedId);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final targetContext = _keyFor(justAddedId).currentContext;
-        if (targetContext != null) {
-          Scrollable.ensureVisible(targetContext,
-              duration: const Duration(milliseconds: 400), curve: Curves.easeOut, alignment: 0.5);
-        }
-      });
-      Future.delayed(const Duration(seconds: 2), () {
-        if (mounted && _highlightedEntryId == justAddedId) setState(() => _highlightedEntryId = null);
-      });
+      final index = appState.entriesOn(DateTime.now()).indexWhere((e) => e.id == justAddedId);
+      if (index != -1) setState(() => _currentPageIndex = index ~/ _entriesPerPage);
+      _highlight(justAddedId);
+      _scrollTo(_carouselKey);
     }
   }
 
@@ -108,14 +143,22 @@ class _JournalScreenState extends State<JournalScreen> {
   }
 
   void _complete() {
+    final appState = AppStateScope.of(context);
+    final today = DateTime.now();
+    if (appState.hasReachedDailyCap(today)) {
+      showAppSnackBar(
+          context, "Today's ${AppState.maxDailyEntries}-entry limit is reached — delete one to add another.");
+      return;
+    }
     // No "you must write something" gate — a check-in's mood (and
     // whatever activities/tags came with it) is already meaningful on its
     // own; text is genuinely optional detail, not a requirement.
     final customTitle = _titleController.text.trim();
-    AppStateScope.of(context).addEntry(
+    final id = 'journal-${today.microsecondsSinceEpoch}';
+    appState.addEntry(
       JournalEntry(
-        id: 'journal-${DateTime.now().microsecondsSinceEpoch}',
-        dateTime: DateTime.now(),
+        id: id,
+        dateTime: today,
         mood: _mood,
         title: customTitle.isEmpty ? 'Feeling ${_mood.label}' : customTitle,
         text: _textController.text.trim(),
@@ -125,6 +168,7 @@ class _JournalScreenState extends State<JournalScreen> {
         // the exact same list this just-saved entry is holding onto.
         photos: List<String>.from(_photos),
         voiceNote: _voiceNote,
+        themeName: _themeName,
       ),
     );
     showAppSnackBar(context, 'Entry saved to your journal \u{1F4D6}');
@@ -132,10 +176,19 @@ class _JournalScreenState extends State<JournalScreen> {
       _textController.clear();
       _titleController.clear();
       _tags.clear();
-      _themeName = null;
+      // Writing Theme deliberately isn't reset — it carries over as the
+      // starting point for the next entry instead of snapping back to
+      // the default every time.
       _photos.clear();
       _voiceNote = null;
+      // The new entry is always last (entriesOn sorts ascending by time).
+      _currentPageIndex = (appState.entriesOn(today).length - 1) ~/ _entriesPerPage;
     });
+    // Scrolls back up to show the freshly-created entry, the same way
+    // "Save Mood Only" does — so completing an entry visibly confirms it
+    // was created, not just a snackbar that scrolls past.
+    _highlight(id);
+    _scrollTo(_carouselKey);
   }
 
   Future<void> _addPhoto() async {
@@ -180,7 +233,7 @@ class _JournalScreenState extends State<JournalScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text("Today's Timeline", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
+            Text("Today's Entries", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
             EntriesHistoryRow(
               entryCount: todaysEntries.length,
               onHistoryTap: () => Navigator.of(context).push(
@@ -190,61 +243,98 @@ class _JournalScreenState extends State<JournalScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        for (final entry in todaysEntries)
-          _TimelineRow(
-            key: _keyFor(entry.id),
-            entry: entry,
-            highlighted: entry.id == _highlightedEntryId,
-          ),
-        if (todaysEntries.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Text('Nothing logged yet today.', style: TextStyle(color: scheme.onSurfaceVariant)),
-          ),
-        const SizedBox(height: 24),
         Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: scheme.secondaryContainer.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(32),
-          ),
-          child: Column(
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: scheme.surfaceContainerLowest.withValues(alpha: 0.8),
-                child: Icon(Icons.sentiment_very_satisfied, color: scheme.secondary),
-              ),
-              const SizedBox(height: 8),
-              Text('NEW ENTRY',
-                  style: TextStyle(
-                      color: scheme.secondary, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1)),
-              const SizedBox(height: 4),
-              Text('Daily Reflection',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(color: scheme.onSecondaryContainer, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              Text('"What\'s one small thing that made you smile today?"',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(color: scheme.onSurface)),
-            ],
-          ),
+          key: _carouselKey,
+          child: todaysEntries.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Nothing logged yet today.', style: TextStyle(color: scheme.onSurfaceVariant)),
+                )
+              : Builder(
+                  builder: (context) {
+                    // Pages of up to _entriesPerPage entries each — not
+                    // one entry per page, so 2 entries (say) is just one
+                    // page showing both, and pagination only kicks in
+                    // once there's enough to actually need it. With the
+                    // 10/day cap and 5 per page that's 2 pages, tops.
+                    final pageCount = (todaysEntries.length / _entriesPerPage).ceil();
+                    final page = (_currentPageIndex ?? pageCount - 1).clamp(0, pageCount - 1);
+                    final pageStart = page * _entriesPerPage;
+                    final pageEnd = (pageStart + _entriesPerPage).clamp(0, todaysEntries.length);
+                    final pageEntries = todaysEntries.sublist(pageStart, pageEnd);
+                    return Column(
+                      children: [
+                        for (final entry in pageEntries)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: _TimelineRow(
+                              key: ValueKey(entry.id),
+                              entry: entry,
+                              highlighted: entry.id == _highlightedEntryId,
+                            ),
+                          ),
+                        if (pageCount > 1) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              IconButton(
+                                onPressed: page > 0 ? () => _goToPage(page - 1) : null,
+                                icon: const Icon(Icons.chevron_left),
+                                visualDensity: VisualDensity.compact,
+                                tooltip: 'Previous page',
+                              ),
+                              for (var i = 0; i < pageCount; i++)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                                  child: Container(
+                                    width: 7,
+                                    height: 7,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: i == page ? scheme.primary : scheme.surfaceContainerHighest,
+                                    ),
+                                  ),
+                                ),
+                              IconButton(
+                                onPressed: page < pageCount - 1 ? () => _goToPage(page + 1) : null,
+                                icon: const Icon(Icons.chevron_right),
+                                visualDensity: VisualDensity.compact,
+                                tooltip: 'Next page',
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                        ],
+                        Text('${todaysEntries.length} of ${AppState.maxDailyEntries} daily slots',
+                            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                      ],
+                    );
+                  },
+                ),
         ),
+        const SizedBox(height: 24),
+        const _DailyReflectionBar(),
+        const SizedBox(height: 24),
+        Text('Journal Reflection',
+            style: Theme.of(context)
+                .textTheme
+                .titleLarge
+                ?.copyWith(color: scheme.primary, fontWeight: FontWeight.w700)),
         const SizedBox(height: 24),
         Text('Writing Theme', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
         const SizedBox(height: 8),
         Row(
           children: [
-            for (final entry in _journalThemes.entries)
+            for (final entry in journalThemes.entries)
               Padding(
                 padding: const EdgeInsets.only(right: 12),
-                child: _ThemeSwatch(
-                  color: entry.value,
+                child: ThemeSwatch(
+                  color: resolveJournalThemeColor(entry.key, scheme.brightness),
                   selected: _themeName == entry.key,
-                  onTap: () => setState(() => _themeName = _themeName == entry.key ? null : entry.key),
+                  // Always selects, never toggles off — a theme is
+                  // always in effect, there's no "none" state.
+                  onTap: () => setState(() => _themeName = entry.key),
                 ),
               ),
           ],
@@ -274,7 +364,8 @@ class _JournalScreenState extends State<JournalScreen> {
             color: _themeName == null
                 ? scheme.surfaceContainerLowest
                 : Color.alphaBlend(
-                    _journalThemes[_themeName]!.withValues(alpha: 0.35), scheme.surfaceContainerLowest),
+                    resolveJournalThemeColor(_themeName!, scheme.brightness).withValues(alpha: 0.35),
+                    scheme.surfaceContainerLowest),
             borderRadius: BorderRadius.circular(32),
           ),
           padding: const EdgeInsets.all(20),
@@ -368,30 +459,25 @@ class _JournalScreenState extends State<JournalScreen> {
             },
           ),
         ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          // Re-recording naturally replaces the previous one (setState
-          // just overwrites _voiceNote) — no reason to force removing it
-          // first before allowing another take.
-          onPressed: _recordVoiceNote,
-          icon: const Icon(Icons.mic),
-          label: Text(_voiceNote == null ? 'Voice Note' : 'Re-record'),
-        ),
+        if (_voiceNote == null) ...[
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            // Solid, matching the same button on the entry detail screen.
+            style: FilledButton.styleFrom(
+              backgroundColor: scheme.primary,
+              foregroundColor: scheme.onPrimary,
+              shape: const StadiumBorder(),
+            ),
+            onPressed: _recordVoiceNote,
+            icon: const Icon(Icons.mic),
+            label: const Text('Voice Note'),
+          ),
+        ],
         if (_voiceNote != null) ...[
           const SizedBox(height: 12),
-          Row(
-            children: [
-              VoiceNotePlayer(base64Audio: _voiceNote!),
-              const SizedBox(width: 8),
-              InkWell(
-                onTap: () => setState(() => _voiceNote = null),
-                borderRadius: BorderRadius.circular(999),
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: Icon(Icons.delete_outline, size: 20, color: scheme.onSurfaceVariant),
-                ),
-              ),
-            ],
+          VoiceNotePlayer(
+            base64Audio: _voiceNote!,
+            onDelete: () => setState(() => _voiceNote = null),
           ),
         ],
         const SizedBox(height: 24),
@@ -454,19 +540,98 @@ class _JournalScreenState extends State<JournalScreen> {
         ],
         const SizedBox(height: 32),
         Center(
-          child: FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: scheme.primary,
-              foregroundColor: scheme.onPrimary,
-              shape: const StadiumBorder(),
-              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 18),
-            ),
-            onPressed: _complete,
-            icon: const Icon(Icons.check_circle),
-            label: const Text('Complete Entry', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          child: Column(
+            children: [
+              // Dimmed but still tappable at the cap — same reasoning as
+              // Today's Save buttons: a hard-disabled button couldn't
+              // show _complete()'s "limit reached" reminder on tap.
+              AnimatedOpacity(
+                opacity: appState.hasReachedDailyCap(today) ? 0.5 : 1,
+                duration: const Duration(milliseconds: 200),
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: scheme.primary,
+                    foregroundColor: scheme.onPrimary,
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 18),
+                  ),
+                  onPressed: _complete,
+                  icon: const Icon(Icons.check_circle),
+                  label: const Text('Complete Entry', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                ),
+              ),
+              if (appState.hasReachedDailyCap(today)) ...[
+                const SizedBox(height: 8),
+                Text("Today's ${AppState.maxDailyEntries}-entry limit is reached.",
+                    style: TextStyle(fontSize: 12, color: scheme.error)),
+              ],
+            ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Compact expand/collapse bar for the day's writing prompt — a full
+/// card felt like too much space for what's often a one-liner; this
+/// stays a single row until there's actually more to reveal.
+class _DailyReflectionBar extends StatefulWidget {
+  const _DailyReflectionBar();
+
+  @override
+  State<_DailyReflectionBar> createState() => _DailyReflectionBarState();
+}
+
+class _DailyReflectionBarState extends State<_DailyReflectionBar> {
+  // TODO: rotate daily rather than a single fixed prompt, if/when there's
+  // a bank of these to pick from.
+  static const _prompt = "What's one small thing that made you smile today?";
+
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(24),
+      onTap: () => setState(() => _expanded = !_expanded),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: scheme.secondaryContainer.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.auto_awesome, size: 18, color: scheme.secondary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('DAILY REFLECTION',
+                      style: TextStyle(
+                          color: scheme.secondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1)),
+                  const SizedBox(height: 2),
+                  Text('"$_prompt"',
+                      maxLines: _expanded ? null : 1,
+                      overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                      style: TextStyle(
+                          color: scheme.onSecondaryContainer, fontWeight: FontWeight.w600, fontStyle: FontStyle.italic)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Icon(_expanded ? Icons.expand_less : Icons.chevron_right, size: 20, color: scheme.secondary),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -518,6 +683,21 @@ class _TimelineRowState extends State<_TimelineRow> {
           child: Icon(Icons.delete_outline, color: scheme.onErrorContainer),
         ),
         confirmDismiss: (_) async {
+          final appState = AppStateScope.of(context);
+          if (appState.hasReachedDeletedCap(entry.dateTime)) {
+            await showDialog<void>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Deleted history is full'),
+                content: Text(
+                    "This day's History already has ${AppState.maxDeletedEntriesPerDay} deleted entries. Restore or permanently delete some from History before deleting another."),
+                actions: [
+                  TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK')),
+                ],
+              ),
+            );
+            return false;
+          }
           final confirmed = await showDialog<bool>(
             context: context,
             builder: (context) => AlertDialog(
@@ -539,7 +719,10 @@ class _TimelineRowState extends State<_TimelineRow> {
           showAppSnackBar(context, 'Entry deleted');
         },
         child: Material(
-          color: scheme.surfaceContainerLow.withValues(alpha: 0.6),
+          // Mood-tinted like Calendar's day-view card, instead of a flat
+          // neutral gray — the two lists should read as the same kind of
+          // card wherever an entry shows up.
+          color: entry.mood.swatch.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(20),
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
@@ -552,7 +735,7 @@ class _TimelineRowState extends State<_TimelineRow> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: widget.highlighted ? scheme.primary : scheme.surfaceContainerHighest,
+                  color: widget.highlighted ? scheme.primary : entry.mood.swatch.withValues(alpha: 0.3),
                   width: widget.highlighted ? 2 : 1,
                 ),
               ),
@@ -594,6 +777,10 @@ class _TimelineRowState extends State<_TimelineRow> {
                             ),
                           ),
                           const SizedBox(width: 8),
+                          if (entry.voiceNote != null) ...[
+                            Icon(Icons.mic, size: 14, color: scheme.onSurfaceVariant),
+                            const SizedBox(width: 4),
+                          ],
                           Text(DateFormat('h:mm a').format(entry.dateTime),
                               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
                           if (hasOverflow)
@@ -644,31 +831,6 @@ class _TimelineRowState extends State<_TimelineRow> {
   }
 }
 
-class _ThemeSwatch extends StatelessWidget {
-  const _ThemeSwatch({required this.color, required this.selected, required this.onTap});
-
-  final Color color;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: Border.all(color: selected ? scheme.primary : scheme.surfaceContainerHighest, width: selected ? 3 : 2),
-        ),
-      ),
-    );
-  }
-}
 
 class _TagChip extends StatelessWidget {
   const _TagChip({required this.label, required this.selected, required this.onTap});

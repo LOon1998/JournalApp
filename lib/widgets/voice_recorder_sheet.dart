@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -65,10 +66,21 @@ class _VoiceRecorderSheetState extends State<_VoiceRecorderSheet> {
         setState(() => _error = "Microphone permission wasn't granted.");
         return;
       }
-      final dir = await getTemporaryDirectory();
-      final path = '${dir.path}/lumina_voice_${DateTime.now().microsecondsSinceEpoch}.m4a';
+      // path_provider has no real web implementation — calling
+      // getTemporaryDirectory() there throws MissingPluginException. The
+      // web recorder backend hands back its own blob: URL from stop()
+      // regardless of what path we pass, so a bare filename is enough.
+      // AAC (native's encoder) also isn't something browsers' MediaRecorder
+      // can produce — Opus is the encoder that's actually broadly
+      // supported there.
+      final fileName = 'lumina_voice_${DateTime.now().microsecondsSinceEpoch}';
+      final path = kIsWeb ? '$fileName.webm' : '${(await getTemporaryDirectory()).path}/$fileName.m4a';
       await _recorder.start(
-        const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 64000, numChannels: 1),
+        RecordConfig(
+          encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.aacLc,
+          bitRate: 64000,
+          numChannels: 1,
+        ),
         path: path,
       );
       if (!mounted) return;

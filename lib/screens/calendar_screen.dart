@@ -203,7 +203,18 @@ class _DayCell extends StatelessWidget {
                       child: Container(
                         width: 6,
                         height: 6,
-                        decoration: BoxDecoration(shape: BoxShape.circle, color: e.mood.swatch),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          // The pastel swatch on its own reads as barely
+                          // more than a light smudge against the day
+                          // grid's background — its higher-contrast
+                          // onSwatch companion actually shows up. Same
+                          // brightness-aware swap as the day-detail
+                          // card's title text below, so it stays visible
+                          // in dark mode too (where onSwatch would be the
+                          // low-contrast one instead).
+                          color: scheme.brightness == Brightness.dark ? e.mood.swatch : e.mood.onSwatch,
+                        ),
                       ),
                     ),
                 ],
@@ -240,6 +251,17 @@ class _EntryDetailCardState extends State<_EntryDetailCard> {
     // otherwise it'd just repeat the title back verbatim underneath it.
     final hasCustomTitle = entry.title != 'Feeling ${entry.mood.label}';
 
+    // Mood.onSwatch is a fixed dark color meant for text on top of the
+    // *fully opaque* pastel Mood.swatch (like the avatar below) — this
+    // card's background is that same swatch blended at only 15% alpha
+    // over the page, which in dark mode stays close to the page's own
+    // near-black surface. onSwatch text there read as dark-on-near-black
+    // — nearly invisible. The bright pastel swatch color itself reads
+    // fine against a dark card, so brightness picks whichever of the
+    // pair actually contrasts with this specific (tinted, not opaque)
+    // background.
+    final moodTextColor = scheme.brightness == Brightness.dark ? entry.mood.swatch : entry.mood.onSwatch;
+
     final labels = entry.labels;
     final visibleTags = _expanded ? labels : labels.take(_collapsedTagCount).toList();
     final hiddenTagCount = labels.length - visibleTags.length;
@@ -259,6 +281,21 @@ class _EntryDetailCardState extends State<_EntryDetailCard> {
           child: Icon(Icons.delete_outline, color: scheme.onErrorContainer),
         ),
         confirmDismiss: (_) async {
+          final appState = AppStateScope.of(context);
+          if (appState.hasReachedDeletedCap(entry.dateTime)) {
+            await showDialog<void>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Deleted history is full'),
+                content: Text(
+                    "This day's History already has ${AppState.maxDeletedEntriesPerDay} deleted entries. Restore or permanently delete some from History before deleting another."),
+                actions: [
+                  TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK')),
+                ],
+              ),
+            );
+            return false;
+          }
           final confirmed = await showDialog<bool>(
             context: context,
             builder: (context) => AlertDialog(
@@ -321,8 +358,7 @@ class _EntryDetailCardState extends State<_EntryDetailCard> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(entry.title,
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.w700, fontSize: 15, color: entry.mood.onSwatch)),
+                                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: moodTextColor)),
                                 if (hasCustomTitle) ...[
                                   const SizedBox(height: 2),
                                   Text('Feeling ${entry.mood.label}',
@@ -333,13 +369,17 @@ class _EntryDetailCardState extends State<_EntryDetailCard> {
                             ),
                           ),
                           const SizedBox(width: 8),
+                          if (entry.voiceNote != null) ...[
+                            Icon(Icons.mic, size: 14, color: scheme.outline),
+                            const SizedBox(width: 4),
+                          ],
                           Text(DateFormat('h:mm a').format(entry.dateTime),
                               style: TextStyle(fontSize: 12, color: scheme.outline)),
                           if (hasOverflow)
                             IconButton(
                               onPressed: () => setState(() => _expanded = !_expanded),
                               icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more,
-                                  size: 20, color: entry.mood.onSwatch),
+                                  size: 20, color: moodTextColor),
                               tooltip: _expanded ? 'Show less' : 'Show more',
                               visualDensity: VisualDensity.compact,
                               padding: EdgeInsets.zero,

@@ -49,6 +49,17 @@ class _AuraFabState extends State<AuraFab> with SingleTickerProviderStateMixin {
   // Total movement (px) below which a pan gesture still counts as a tap.
   static const _tapSlop = 8.0;
 
+  // Extra space reserved above/left of the button so the hint bubble has
+  // genuine room, rather than relying on Stack overflow. A RenderBox only
+  // hit-tests its children if the tap position already falls within its
+  // *own* declared size — Positioned children painted outside that via
+  // `clipBehavior: Clip.none` render fine but are never reachable by a
+  // tap, since the parent bails out before even checking them. That was
+  // the actual bug behind "the close button doesn't work": it was
+  // visible, just untappable, painted outside the button's 56x56 box.
+  static const _hintReserveLeft = 150.0;
+  static const _hintReserveTop = 140.0;
+
   Offset? _position;
   double _dragDistance = 0;
 
@@ -94,61 +105,72 @@ class _AuraFabState extends State<AuraFab> with SingleTickerProviderStateMixin {
       _pulseController.value = 0;
     }
 
+    // The reserved region shifts the button's on-screen position by
+    // (reserveLeft, reserveTop) relative to this bigger box's own
+    // top-left — subtracting that from the outer Positioned's offset
+    // keeps the button itself exactly where the drag logic above put it.
     return Positioned(
-      left: left,
-      top: top,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          IgnorePointer(
-            ignoring: !widget.enabled,
-            child: AnimatedOpacity(
-              opacity: widget.enabled ? 1 : 0,
-              duration: const Duration(milliseconds: 150),
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onPanStart: (_) => _dragDistance = 0,
-                onPanUpdate: (details) {
-                  setState(() {
-                    _dragDistance += details.delta.distance;
-                    _position = Offset(
-                      (_position!.dx + details.delta.dx).clamp(_margin, maxX),
-                      (_position!.dy + details.delta.dy).clamp(_margin, maxY),
-                    );
-                  });
-                },
-                onPanEnd: (_) {
-                  if (_dragDistance < _tapSlop) {
-                    appState.dismissAuraHint();
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const AuraChatScreen()),
-                    );
-                  }
-                },
-                child: FadeTransition(
-                  opacity: _pulseOpacity,
-                  child: Material(
-                    color: scheme.primary,
-                    shape: const CircleBorder(),
-                    elevation: 6,
-                    shadowColor: scheme.primary.withValues(alpha: 0.4),
-                    child: SizedBox(
-                      width: _size,
-                      height: _size,
-                      child: Icon(Icons.chat_bubble_rounded, color: scheme.onPrimary, size: 26),
+      left: left - _hintReserveLeft,
+      top: top - _hintReserveTop,
+      child: SizedBox(
+        width: _size + _hintReserveLeft,
+        height: _size + _hintReserveTop,
+        child: Stack(
+          children: [
+            Positioned(
+              left: _hintReserveLeft,
+              top: _hintReserveTop,
+              child: IgnorePointer(
+                ignoring: !widget.enabled,
+                child: AnimatedOpacity(
+                  opacity: widget.enabled ? 1 : 0,
+                  duration: const Duration(milliseconds: 150),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onPanStart: (_) => _dragDistance = 0,
+                    onPanUpdate: (details) {
+                      setState(() {
+                        _dragDistance += details.delta.distance;
+                        _position = Offset(
+                          (_position!.dx + details.delta.dx).clamp(_margin, maxX),
+                          (_position!.dy + details.delta.dy).clamp(_margin, maxY),
+                        );
+                      });
+                    },
+                    onPanEnd: (_) {
+                      if (_dragDistance < _tapSlop) {
+                        appState.dismissAuraHint();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const AuraChatScreen()),
+                        );
+                      }
+                    },
+                    child: FadeTransition(
+                      opacity: _pulseOpacity,
+                      child: Material(
+                        color: scheme.primary,
+                        shape: const CircleBorder(),
+                        elevation: 6,
+                        shadowColor: scheme.primary.withValues(alpha: 0.4),
+                        child: SizedBox(
+                          width: _size,
+                          height: _size,
+                          child: Icon(Icons.chat_bubble_rounded, color: scheme.onPrimary, size: 26),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-          if (showHint)
-            Positioned(
-              bottom: _size + 12,
-              right: 0,
-              child: _HintBubble(onDismiss: appState.dismissAuraHint),
-            ),
-        ],
+            if (showHint)
+              Positioned(
+                bottom: _size + 12,
+                right: 0,
+                child: _HintBubble(onDismiss: appState.dismissAuraHint),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -166,24 +188,31 @@ class _HintBubble extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Stack(
-          clipBehavior: Clip.none,
           children: [
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 190),
-              child: Material(
-                color: scheme.primaryContainer,
-                borderRadius: BorderRadius.circular(20),
-                elevation: 4,
-                shadowColor: Colors.black.withValues(alpha: 0.2),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    "Need to talk? I'm here for you.",
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      height: 1.35,
-                      color: scheme.onPrimaryContainer,
+            // Padded in by the same 8px the close button below sits at,
+            // so that button lands inside this Stack's own bounds
+            // instead of overflowing it — see the reserved-space comment
+            // on _AuraFabState for why that matters for tappability, not
+            // just how it looks.
+            Padding(
+              padding: const EdgeInsets.only(top: 8, right: 8),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 190),
+                child: Material(
+                  color: scheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(20),
+                  elevation: 4,
+                  shadowColor: Colors.black.withValues(alpha: 0.2),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      "Need to talk? I'm here for you.",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
+                        color: scheme.onPrimaryContainer,
+                      ),
                     ),
                   ),
                 ),
@@ -194,8 +223,8 @@ class _HintBubble extends StatelessWidget {
             // and it's now the *only* way this hint ever goes away (no
             // more auto-dismiss timer).
             Positioned(
-              top: -8,
-              right: -8,
+              top: 0,
+              right: 0,
               child: Material(
                 color: scheme.surfaceContainerLowest,
                 shape: const CircleBorder(),

@@ -54,6 +54,9 @@ dependencies:
   # Temp-file staging while recording/reading picked media, before it's
   # base64-encoded into the entry and the temp file is discarded.
   path_provider: ^2.1.5
+  # fetch()/URL bindings — used on web only, to read a recorded voice
+  # note's bytes back out of the blob: URL record's web backend returns.
+  web: ^1.1.0
 
 dev_dependencies:
   flutter_test:

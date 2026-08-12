@@ -2,15 +2,20 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 /// Small inline play/pause control with elapsed/total time for a
 /// base64-encoded voice note, played straight from memory via
 /// [BytesSource] — no temp file needed since the audio is embedded
-/// directly in the entry.
+/// directly in the entry. Optionally shows a delete button inline —
+/// pass [onDelete] to include it (and gate it by edit mode, same as
+/// everything else editable on an entry), or omit it for a read-only
+/// player.
 class VoiceNotePlayer extends StatefulWidget {
-  const VoiceNotePlayer({super.key, required this.base64Audio});
+  const VoiceNotePlayer({super.key, required this.base64Audio, this.onDelete});
   final String base64Audio;
+  final VoidCallback? onDelete;
 
   @override
   State<VoiceNotePlayer> createState() => _VoiceNotePlayerState();
@@ -58,7 +63,12 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
     } else {
       // First play, or replaying after it finished — (re)supply the
       // source; resuming a "completed" player would just replay nothing.
-      await _player.play(BytesSource(base64Decode(widget.base64Audio), mimeType: 'audio/mp4'));
+      // Matches whichever encoder voice_recorder_sheet.dart actually
+      // recorded with — Opus/WebM on web (browsers' MediaRecorder can't
+      // produce AAC), AAC/MP4 natively.
+      await _player.play(
+        BytesSource(base64Decode(widget.base64Audio), mimeType: kIsWeb ? 'audio/webm' : 'audio/mp4'),
+      );
       _sourceSet = true;
     }
   }
@@ -93,6 +103,17 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
             _total == Duration.zero ? 'Voice note' : '${_format(_position)} / ${_format(_total)}',
             style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600),
           ),
+          if (widget.onDelete != null) ...[
+            const SizedBox(width: 4),
+            InkWell(
+              onTap: widget.onDelete,
+              customBorder: const CircleBorder(),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(Icons.delete_outline, size: 20, color: scheme.error),
+              ),
+            ),
+          ],
         ],
       ),
     );

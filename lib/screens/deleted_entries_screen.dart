@@ -11,55 +11,106 @@ import 'entry_detail_screen.dart';
 /// all at once). Scoped to [day] (rather than showing everything ever
 /// deleted across all time) so it matches whichever day you were looking
 /// at when you opened it.
-class DeletedEntriesScreen extends StatelessWidget {
+class DeletedEntriesScreen extends StatefulWidget {
   const DeletedEntriesScreen({super.key, required this.day});
 
   final DateTime day;
 
   @override
+  State<DeletedEntriesScreen> createState() => _DeletedEntriesScreenState();
+}
+
+class _DeletedEntriesScreenState extends State<DeletedEntriesScreen> {
+  // Same page size as Journal's own entries carousel, for consistency —
+  // with the 20/day deleted cap that's up to 4 pages.
+  static const _entriesPerPage = 5;
+
+  // null means "not navigated yet" — resolves to page 0, since
+  // deletedEntriesOn is already sorted most-recently-deleted first.
+  int? _currentPageIndex;
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final appState = AppStateScope.of(context);
+    final deleted = appState.deletedEntriesOn(widget.day);
+    final pageCount = deleted.isEmpty ? 0 : (deleted.length / _entriesPerPage).ceil();
+    final page = pageCount == 0 ? 0 : (_currentPageIndex ?? 0).clamp(0, pageCount - 1);
+    final pageStart = page * _entriesPerPage;
+    final pageEnd = (pageStart + _entriesPerPage).clamp(0, deleted.length);
+    final pageEntries = deleted.sublist(pageStart, pageEnd);
 
-    return AnimatedBuilder(
-      animation: appState,
-      builder: (context, _) {
-        final deleted = appState.deletedEntriesOn(day);
-        return Scaffold(
-          appBar: AppBar(
-            leading: BackButton(color: scheme.onSurfaceVariant),
-            title: Column(
-              mainAxisSize: MainAxisSize.min,
+    return Scaffold(
+      appBar: AppBar(
+        leading: BackButton(color: scheme.onSurfaceVariant),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Deleted Entries',
+                style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600, fontSize: 20)),
+            Text(DateFormat.yMMMMd().format(widget.day),
+                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w500)),
+          ],
+        ),
+        centerTitle: true,
+        actions: [
+          TextButton.icon(
+            onPressed: deleted.isEmpty ? null : () => _confirmClearAll(context, appState, deleted.length),
+            icon: Icon(Icons.delete_sweep, size: 18, color: deleted.isEmpty ? scheme.outlineVariant : scheme.error),
+            label: Text('Clear All',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: deleted.isEmpty ? scheme.outlineVariant : scheme.error)),
+          ),
+        ],
+      ),
+      body: deleted.isEmpty
+          ? _EmptyState(scheme: scheme, day: widget.day)
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
               children: [
-                Text('Deleted Entries',
-                    style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600, fontSize: 20)),
-                Text(DateFormat.yMMMMd().format(day),
-                    style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w500)),
+                Text('${deleted.length} of ${AppState.maxDeletedEntriesPerDay} deleted slots',
+                    style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                const SizedBox(height: 12),
+                for (final entry in pageEntries)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: _DeletedEntryCard(entry: entry),
+                  ),
+                if (pageCount > 1)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: page > 0 ? () => setState(() => _currentPageIndex = page - 1) : null,
+                        icon: const Icon(Icons.chevron_left),
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'Previous page',
+                      ),
+                      for (var i = 0; i < pageCount; i++)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          child: Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: i == page ? scheme.primary : scheme.surfaceContainerHighest,
+                            ),
+                          ),
+                        ),
+                      IconButton(
+                        onPressed:
+                            page < pageCount - 1 ? () => setState(() => _currentPageIndex = page + 1) : null,
+                        icon: const Icon(Icons.chevron_right),
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'Next page',
+                      ),
+                    ],
+                  ),
               ],
             ),
-            centerTitle: true,
-            actions: [
-              TextButton.icon(
-                onPressed: deleted.isEmpty ? null : () => _confirmClearAll(context, appState, deleted.length),
-                icon: Icon(Icons.delete_sweep, size: 18, color: deleted.isEmpty ? scheme.outlineVariant : scheme.error),
-                label: Text('Clear All',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: deleted.isEmpty ? scheme.outlineVariant : scheme.error)),
-              ),
-            ],
-          ),
-          body: deleted.isEmpty
-              ? _EmptyState(scheme: scheme, day: day)
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-                  itemCount: deleted.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 16),
-                  itemBuilder: (context, index) => _DeletedEntryCard(entry: deleted[index]),
-                ),
-        );
-      },
     );
   }
 
@@ -69,7 +120,7 @@ class DeletedEntriesScreen extends StatelessWidget {
       builder: (context) => AlertDialog(
         title: const Text('Permanently delete all?'),
         content: Text(
-            'This will permanently delete all $count deleted ${count == 1 ? 'entry' : 'entries'} from ${DateFormat.yMMMMd().format(day)}. This can\'t be undone.'),
+            'This will permanently delete all $count deleted ${count == 1 ? 'entry' : 'entries'} from ${DateFormat.yMMMMd().format(widget.day)}. This can\'t be undone.'),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
           TextButton(
@@ -80,7 +131,7 @@ class DeletedEntriesScreen extends StatelessWidget {
       ),
     );
     if (confirmed == true) {
-      appState.clearDeletedEntriesOn(day);
+      appState.clearDeletedEntriesOn(widget.day);
     }
   }
 }
@@ -190,11 +241,22 @@ class _DeletedEntryCard extends StatelessWidget {
                                     ],
                                   ),
                                   const SizedBox(height: 2),
-                                  Text(entry.title,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(fontWeight: FontWeight.w700)),
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(entry.title,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium
+                                                ?.copyWith(fontWeight: FontWeight.w700)),
+                                      ),
+                                      if (entry.voiceNote != null) ...[
+                                        const SizedBox(width: 6),
+                                        Icon(Icons.mic, size: 15, color: scheme.onSurfaceVariant),
+                                      ],
+                                    ],
+                                  ),
                                 ],
                               ),
                             ),
@@ -226,7 +288,7 @@ class _DeletedEntryCard extends StatelessWidget {
                                   shape: const StadiumBorder(),
                                   padding: const EdgeInsets.symmetric(vertical: 10),
                                 ),
-                                onPressed: () => AppStateScope.of(context).restoreEntry(entry.id),
+                                onPressed: () => _restore(context),
                                 icon: const Icon(Icons.restore, size: 18),
                                 label:
                                     const Text('Restore', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
@@ -259,6 +321,25 @@ class _DeletedEntryCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _restore(BuildContext context) {
+    final appState = AppStateScope.of(context);
+    if (appState.hasReachedDailyCap(entry.dateTime)) {
+      showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("Can't restore"),
+          content: Text(
+              "${DateFormat.yMMMMd().format(entry.dateTime)} already has ${AppState.maxDailyEntries} entries — delete one from that day before restoring this."),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK')),
+          ],
+        ),
+      );
+      return;
+    }
+    appState.restoreEntry(entry.id);
   }
 
   void _confirmDeleteForever(BuildContext context) async {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_snackbar.dart';
 import '../widgets/floating_card.dart';
 
 class InsightsScreen extends StatelessWidget {
@@ -257,7 +258,9 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
                         _EmojiButton(
                           mood: mood,
                           selected: _selectedMood == mood,
-                          onTap: () => setState(() => _selectedMood = mood),
+                          // Tapping the already-selected mood again
+                          // deselects it, same as Today's own picker.
+                          onTap: () => setState(() => _selectedMood = _selectedMood == mood ? null : mood),
                         ),
                     ],
                   ),
@@ -273,6 +276,16 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         onPressed: () {
+                          // Effectively unreachable in practice — this
+                          // whole card already hides itself once *any*
+                          // entry exists today (see alreadyLoggedToday
+                          // above), well before the 10-entry cap — but
+                          // checked anyway for consistency with the other
+                          // entry-creating actions.
+                          if (appState.hasReachedDailyCap(DateTime.now())) {
+                            showAppSnackBar(context, "Today's ${AppState.maxDailyEntries}-entry limit is reached.");
+                            return;
+                          }
                           // No activities from this quick picker (it's a
                           // shortcut, not the full Today form) — Journal's
                           // tags stay whatever the user adds there.
@@ -300,6 +313,10 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                         onPressed: () {
+                          if (appState.hasReachedDailyCap(DateTime.now())) {
+                            showAppSnackBar(context, "Today's ${AppState.maxDailyEntries}-entry limit is reached.");
+                            return;
+                          }
                           // Unlike "Save & Write Journal", this commits a
                           // complete entry immediately — Journal then
                           // scrolls to and briefly highlights it.

@@ -1,11 +1,25 @@
+import 'dart:js_interop';
 import 'dart:typed_data';
 
-// `dart:io`'s File isn't available on web, and record's web implementation
-// returns a blob URL as its "path" rather than a real file, so reading the
-// recorded bytes back out isn't supported through this path on web yet —
-// this stub keeps the app compiling for web (the GitHub Pages CI build)
-// instead of failing outright. The app's actual target is mobile per how
-// it's being tested, where file_bytes_io.dart's real implementation runs.
-Future<Uint8List?> readFileBytes(String path) async => null;
+import 'package:web/web.dart' as web;
 
-Future<void> deleteFileQuietly(String path) async {}
+/// record's web backend hands back a `blob:` URL as its "path" rather than
+/// a real file — fetch() is the standard way to pull the bytes back out of
+/// one of those in a browser.
+Future<Uint8List?> readFileBytes(String path) async {
+  try {
+    final response = await web.window.fetch(path.toJS).toDart;
+    final buffer = await response.arrayBuffer().toDart;
+    return buffer.toDart.asUint8List();
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Blob URLs aren't real files to delete — revoking releases the browser
+/// memory backing it instead.
+Future<void> deleteFileQuietly(String path) async {
+  try {
+    web.URL.revokeObjectURL(path);
+  } catch (_) {}
+}

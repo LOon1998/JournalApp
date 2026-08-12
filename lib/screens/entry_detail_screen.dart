@@ -7,6 +7,7 @@ import '../services/media_capture.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_snackbar.dart';
 import '../widgets/photo_tile.dart';
+import '../widgets/theme_swatch.dart';
 import '../widgets/voice_note_player.dart';
 import '../widgets/voice_recorder_sheet.dart';
 
@@ -45,6 +46,19 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
   bool _editingTitle = false;
   final _titleController = TextEditingController();
 
+  // Snapshots taken when edit mode starts, restored on Cancel. Unlike the
+  // body text (which lives only in _textController until Save), photos,
+  // the title tick, tags, and the voice note all commit to the entry
+  // immediately when touched — so Cancel has to actively put each of
+  // these back, or changes made mid-edit would silently stick instead of
+  // being discarded along with everything else.
+  List<String>? _photosSnapshot;
+  List<String>? _tagsSnapshot;
+  List<String>? _activitiesSnapshot;
+  String? _voiceNoteSnapshot;
+  String? _titleSnapshot;
+  String? _themeNameSnapshot;
+
   @override
   void dispose() {
     _textController.dispose();
@@ -64,6 +78,12 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
 
   void _startEditingText(JournalEntry entry) {
     _textController.text = entry.text;
+    _photosSnapshot = List<String>.from(entry.photos);
+    _tagsSnapshot = List<String>.from(entry.tags);
+    _activitiesSnapshot = List<String>.from(entry.activities);
+    _voiceNoteSnapshot = entry.voiceNote;
+    _titleSnapshot = entry.title;
+    _themeNameSnapshot = entry.themeName;
     setState(() => _editingText = true);
   }
 
@@ -73,19 +93,60 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
     // mid-edit — save it rather than silently abandoning it.
     if (_editingTitle) _saveTitle(appState, entry);
     showAppSnackBar(context, 'Entry saved');
-    setState(() => _editingText = false);
+    setState(() {
+      _editingText = false;
+      _photosSnapshot = null;
+      _tagsSnapshot = null;
+      _activitiesSnapshot = null;
+      _voiceNoteSnapshot = null;
+      _titleSnapshot = null;
+      _themeNameSnapshot = null;
+    });
   }
 
-  void _cancelEditingText(JournalEntry entry) {
-    // The underlying entry was never touched by editing — only the drafts
-    // in _textController and _titleController were — so "cancelling" just
-    // means throwing those drafts away and dropping out of edit mode;
-    // nothing to undo on the AppState side.
+  void _cancelEditingText(AppState appState, JournalEntry entry) {
+    // The written text was only ever a draft (in _textController) until
+    // Save, so cancelling that is just dropping the draft. Everything
+    // else below commits to the entry immediately as soon as it's
+    // touched, rather than staying local — so cancelling has to actively
+    // restore each one's snapshot from when editing started, or changes
+    // made mid-edit would silently stick around.
+    if (_photosSnapshot != null) appState.setPhotos(entry.id, _photosSnapshot!);
+    if (_tagsSnapshot != null && _activitiesSnapshot != null) {
+      appState.setLabels(entry.id, _tagsSnapshot!, _activitiesSnapshot!);
+    }
+    // _voiceNoteSnapshot itself may legitimately be null (no voice note
+    // when editing started) — that's still a real snapshot to restore to,
+    // just via removeVoiceNote instead of setVoiceNote.
+    if (_titleSnapshot != null) {
+      final snapshotVoiceNote = _voiceNoteSnapshot;
+      if (snapshotVoiceNote != null) {
+        appState.setVoiceNote(entry.id, snapshotVoiceNote);
+      } else {
+        appState.removeVoiceNote(entry.id);
+      }
+      appState.updateEntry(entry.id, title: _titleSnapshot!);
+      // Same "may legitimately be null" situation as the voice note —
+      // an entry with no Writing Theme ever set restores to that, not
+      // to whatever was picked mid-edit.
+      final snapshotTheme = _themeNameSnapshot;
+      if (snapshotTheme != null) {
+        appState.updateEntry(entry.id, themeName: snapshotTheme);
+      } else {
+        appState.updateEntry(entry.id, clearThemeName: true);
+      }
+    }
     setState(() {
       _editingText = false;
       _textController.text = entry.text;
       _editingTitle = false;
-      _titleController.text = entry.title;
+      _titleController.text = _titleSnapshot ?? entry.title;
+      _photosSnapshot = null;
+      _tagsSnapshot = null;
+      _activitiesSnapshot = null;
+      _voiceNoteSnapshot = null;
+      _titleSnapshot = null;
+      _themeNameSnapshot = null;
     });
   }
 
@@ -159,6 +220,53 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
     Share.share(buffer.toString(), subject: entry.title);
   }
 
+  // Same daily-cap check as the Deleted Entries list's own Restore
+  // button — restoring shouldn't be able to push a day past its
+  // maxDailyEntries limit any more than creating a new entry can.
+  void _restore(BuildContext context, AppState appState, JournalEntry entry) {
+    if (appState.hasReachedDailyCap(entry.dateTime)) {
+      showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("Can't restore"),
+          content: Text(
+              "${DateFormat.yMMMMd().format(entry.dateTime)} already has ${AppState.maxDailyEntries} entries — delete one from that day before restoring this."),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK')),
+          ],
+        ),
+      );
+      return;
+    }
+    appState.restoreEntry(entry.id);
+    showAppSnackBar(context, 'Entry restored');
+    Navigator.of(context).pop();
+  }
+
+  // Same confirm/wording as the Deleted Entries list's own "Delete
+  // Forever" button — this just offers the identical action without
+  // making the user go back to History first.
+  Future<void> _confirmDeleteForever(BuildContext context, AppState appState, JournalEntry entry) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete forever?'),
+        content: Text('"${entry.title}" will be permanently removed. This can\'t be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      appState.permanentlyDeleteEntry(entry.id);
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
@@ -168,6 +276,16 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
         final entry = _findEntry(appState);
         final scheme = Theme.of(context).colorScheme;
         final canEdit = entry != null && !entry.isDeleted;
+        // If a Writing Theme was picked while composing this entry, its
+        // cards stay tinted that color instead of reverting to plain
+        // white/neutral once saved — same alphaBlend the composer itself
+        // uses, so the detail view looks like a continuation of how it
+        // was actually written.
+        final themeColor =
+            entry?.themeName == null ? null : resolveJournalThemeColor(entry!.themeName!, scheme.brightness);
+        final cardColor = themeColor == null
+            ? scheme.surfaceContainerLowest
+            : Color.alphaBlend(themeColor.withValues(alpha: 0.35), scheme.surfaceContainerLowest);
 
         if (entry == null) {
           // Deleted permanently (e.g. via History) while this screen was
@@ -311,6 +429,25 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
               Center(
                 child: Text(_relativeDate(entry.dateTime), style: TextStyle(color: scheme.onSurfaceVariant)),
               ),
+              if (_editingText) ...[
+                const SizedBox(height: 16),
+                Text('Writing Theme',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    for (final themeEntry in journalThemes.entries)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: ThemeSwatch(
+                          color: resolveJournalThemeColor(themeEntry.key, scheme.brightness),
+                          selected: entry.themeName == themeEntry.key,
+                          onTap: () => appState.updateEntry(entry.id, themeName: themeEntry.key),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 20),
               // Its own section, above the written-text card rather than
               // buried inside it — a voice note is its own kind of
@@ -322,40 +459,31 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: scheme.surfaceContainerLowest,
+                    color: cardColor,
                     borderRadius: BorderRadius.circular(32),
                     boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 20)],
                   ),
                   child: entry.voiceNote != null
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            VoiceNotePlayer(base64Audio: entry.voiceNote!),
-                            // Re-record/delete only once the entry itself
-                            // is in edit mode — same gating as the title,
-                            // photos, and tags.
-                            if (_editingText) ...[
-                              const SizedBox(width: 8),
-                              InkWell(
-                                onTap: () => _recordVoiceNote(context, appState, entry),
-                                borderRadius: BorderRadius.circular(999),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(4),
-                                  child: Icon(Icons.mic, size: 20, color: scheme.onSurfaceVariant),
-                                ),
-                              ),
-                              InkWell(
-                                onTap: () => appState.removeVoiceNote(entry.id),
-                                borderRadius: BorderRadius.circular(999),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(4),
-                                  child: Icon(Icons.delete_outline, size: 20, color: scheme.onSurfaceVariant),
-                                ),
-                              ),
-                            ],
-                          ],
+                      ? VoiceNotePlayer(
+                          base64Audio: entry.voiceNote!,
+                          // Delete-only, no direct re-record — a voice
+                          // note only ever gets recorded once; to replace
+                          // it, delete this one first and use "Add Voice
+                          // Note" to record a fresh take. Only offered in
+                          // edit mode, same gating as the title, photos,
+                          // and tags.
+                          onDelete: _editingText ? () => appState.removeVoiceNote(entry.id) : null,
                         )
-                      : OutlinedButton.icon(
+                      : FilledButton.icon(
+                          // Solid, not outlined — an outlined button here
+                          // just let the card's Writing Theme tint show
+                          // straight through it instead of standing out
+                          // as its own control.
+                          style: FilledButton.styleFrom(
+                            backgroundColor: scheme.primary,
+                            foregroundColor: scheme.onPrimary,
+                            shape: const StadiumBorder(),
+                          ),
                           onPressed: () => _recordVoiceNote(context, appState, entry),
                           icon: const Icon(Icons.mic, size: 18),
                           label: const Text('Add Voice Note'),
@@ -367,7 +495,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: scheme.surfaceContainerLowest,
+                  color: cardColor,
                   borderRadius: BorderRadius.circular(32),
                   boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 20)],
                 ),
@@ -420,9 +548,13 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                           _RemovableTagChip(
                             label: tag,
                             onRemove: () => appState.removeLabel(entry.id, tag),
-                            showRemove: canEdit,
+                            // Same edit-mode gating as the title, photos,
+                            // and voice note — _editingText can only be
+                            // true when canEdit already is, so this
+                            // covers the deleted-entry read-only case too.
+                            showRemove: _editingText,
                           ),
-                        if (canEdit) _AddTagButton(onAdd: (tag) => appState.addLabel(entry.id, tag)),
+                        if (_editingText) _AddTagButton(onAdd: (tag) => appState.addLabel(entry.id, tag)),
                       ],
                     ),
                   ],
@@ -440,7 +572,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: scheme.surfaceContainerLowest,
+                    color: cardColor,
                     borderRadius: BorderRadius.circular(32),
                     boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 20)],
                   ),
@@ -493,6 +625,40 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                   ),
                 ),
               ],
+              if (!canEdit) ...[
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: scheme.primaryContainer,
+                          foregroundColor: scheme.onPrimaryContainer,
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        onPressed: () => _restore(context, appState, entry),
+                        icon: const Icon(Icons.restore, size: 18),
+                        label: const Text('Restore'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: scheme.error,
+                          side: BorderSide(color: scheme.errorContainer),
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        onPressed: () => _confirmDeleteForever(context, appState, entry),
+                        icon: const Icon(Icons.delete_forever, size: 18),
+                        label: const Text('Delete Forever'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
           // No edit FAB at all for a deleted entry — it's view-only until
@@ -509,7 +675,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                           backgroundColor: scheme.surfaceContainerHigh,
                           foregroundColor: scheme.onSurfaceVariant,
                           tooltip: 'Cancel',
-                          onPressed: () => _cancelEditingText(entry),
+                          onPressed: () => _cancelEditingText(appState, entry),
                           child: const Icon(Icons.close),
                         ),
                         const SizedBox(height: 12),

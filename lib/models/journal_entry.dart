@@ -25,6 +25,7 @@ class JournalEntry {
     this.deletedAt,
     this.photos = const [],
     this.voiceNote,
+    this.themeName,
   });
 
   final String id;
@@ -53,6 +54,14 @@ class JournalEntry {
   /// entry, if any. Same embed-as-data reasoning as [photos]; capped at
   /// 60 seconds when recorded to keep the encoded size reasonable.
   final String? voiceNote;
+
+  /// Key into Journal's `_journalThemes` map (e.g. "Sunset"), if a
+  /// Writing Theme was picked when this entry was composed. Carried
+  /// through to the detail screen so its cards stay tinted the same
+  /// color the entry was written in, instead of reverting to plain
+  /// white/neutral once saved. Null for entries written before this
+  /// existed, or the demo/seed data.
+  final String? themeName;
 
   /// The chips shown on this entry wherever it's displayed — [tags] and
   /// [activities] merged (deduplicated), since which of the two field an
@@ -85,5 +94,6 @@ class JournalEntry {
         deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
         photos: photos ?? this.photos,
         voiceNote: clearVoiceNote ? null : (voiceNote ?? this.voiceNote),
+        themeName: themeName,
       );
 }

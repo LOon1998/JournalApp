@@ -63,6 +63,36 @@ abstract class LuminaColors {
   static const sunset = Color(0xFFF7C59F);
 }
 
+/// Writing Theme swatches offered in Journal's composer, keyed by the name
+/// stored in [JournalEntry.themeName] — shared (rather than living
+/// privately in journal_screen.dart) so the entry detail screen can look
+/// up the same color to keep a saved entry's cards tinted the way it was
+/// written in.
+const journalThemes = <String, Color>{
+  'Sunset': Color(0xFFFBD6B0),
+  'Sage': Color(0xFFD6E4C0),
+  'Sky': Color(0xFFBFDBFE),
+  'Yellow': Color(0xFFFDE68A),
+  'White': Colors.white,
+};
+
+/// Pre-selected when the composer opens (and again after each Complete
+/// Entry) rather than leaving Writing Theme unset by default.
+const defaultJournalTheme = 'Yellow';
+
+/// The actual color a Writing Theme swatch renders/tints with — [White]
+/// is meant to read as "neutral, no real tint", which only holds in
+/// light mode: blending white *into* a light surface leaves it looking
+/// unchanged, but blending white into a dark surface visibly lightens it
+/// toward grey, breaking dark mode's own look. Resolving it to black in
+/// dark mode keeps the same "blends in, no visible tint" behavior on
+/// both, since black blended into an already-near-black surface stays
+/// near-black. Every other swatch is a fixed color regardless of theme.
+Color resolveJournalThemeColor(String themeName, Brightness brightness) {
+  if (themeName == 'White' && brightness == Brightness.dark) return Colors.black;
+  return journalThemes[themeName] ?? journalThemes[defaultJournalTheme]!;
+}
+
 /// Semantic mood palette, shared by the check-in picker, calendar dots,
 /// journal entry badges and the insights "most frequent" card.
 enum Mood {
@@ -70,7 +100,9 @@ enum Mood {
   good('Good', '🙂', Color(0xFFBBF7D0), Color(0xFF14532D)),
   okay('Okay', '😐', Color(0xFFFED7AA), Color(0xFF7C2D12)),
   sad('Sad', '😢', Color(0xFFBFDBFE), Color(0xFF1E3A8A)),
-  awful('Awful', '😫', Color(0xFFFECACA), Color(0xFF7F1D1D));
+  // Grey rather than red/pink — a "bad mood" indicator doesn't need to
+  // read as an alarm color.
+  awful('Awful', '😫', Color(0xFFE5E7EB), Color(0xFF374151));
 
   const Mood(this.label, this.emoji, this.swatch, this.onSwatch);
 

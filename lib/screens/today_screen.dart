@@ -27,17 +27,27 @@ class _TodayScreenState extends State<TodayScreen> {
     super.dispose();
   }
 
-  void _saveAndWriteJournal() {
-    final mood = _selectedMood;
-    if (mood == null) {
+  bool _checkMoodAndCap(AppState appState) {
+    if (_selectedMood == null) {
       showAppSnackBar(context, 'Pick a mood first \u{1F642}');
-      return;
+      return false;
     }
+    if (appState.hasReachedDailyCap(DateTime.now())) {
+      showAppSnackBar(
+          context, "Today's ${AppState.maxDailyEntries}-entry limit is reached — delete one to add another.");
+      return false;
+    }
+    return true;
+  }
+
+  void _saveAndWriteJournal() {
+    final appState = AppStateScope.of(context);
+    if (!_checkMoodAndCap(appState)) return;
     // Nothing is saved yet — this only stages the check-in for Journal to
     // turn into an actual entry once "Complete Entry" is pressed there.
     // Saving here too (as this used to do) was creating a duplicate entry
     // on top of whatever Journal went on to save.
-    AppStateScope.of(context).handOffCheckInToJournal(mood, _activities.toList());
+    appState.handOffCheckInToJournal(_selectedMood!, _activities.toList());
     setState(() {
       _selectedMood = null;
       _activities.clear();
@@ -47,15 +57,12 @@ class _TodayScreenState extends State<TodayScreen> {
   }
 
   void _saveMoodOnly() {
-    final mood = _selectedMood;
-    if (mood == null) {
-      showAppSnackBar(context, 'Pick a mood first \u{1F642}');
-      return;
-    }
+    final appState = AppStateScope.of(context);
+    if (!_checkMoodAndCap(appState)) return;
     // Unlike "Save & Write Journal", this commits a complete entry
     // immediately — Journal then scrolls to and briefly highlights it so
     // it's obvious exactly where the quick save landed.
-    AppStateScope.of(context).addQuickEntry(mood, _activities.toList());
+    appState.addQuickEntry(_selectedMood!, _activities.toList());
     showAppSnackBar(context, 'Mood saved to your journal \u{1F4D6}');
     setState(() {
       _selectedMood = null;
@@ -78,6 +85,7 @@ class _TodayScreenState extends State<TodayScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final atCap = AppStateScope.of(context).hasReachedDailyCap(DateTime.now());
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
       children: [
@@ -99,7 +107,9 @@ class _TodayScreenState extends State<TodayScreen> {
               _MoodOption(
                 mood: mood,
                 selected: _selectedMood == mood,
-                onTap: () => setState(() => _selectedMood = mood),
+                // Tapping the already-selected mood again deselects it,
+                // rather than being stuck once picked.
+                onTap: () => setState(() => _selectedMood = _selectedMood == mood ? null : mood),
               ),
           ],
         ),
@@ -175,12 +185,13 @@ class _TodayScreenState extends State<TodayScreen> {
         Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 320),
-            // Dimmed until a mood is picked, but still tappable — a truly
-            // disabled (onPressed: null) button couldn't show the "pick a
-            // mood first" reminder on tap. Only mood gates this; picking
-            // activities/tags alone doesn't light the buttons up.
+            // Dimmed until a mood is picked (or the daily cap is
+            // reached), but still tappable — a truly disabled
+            // (onPressed: null) button couldn't show the reminder
+            // snackbar on tap. Picking activities/tags alone doesn't
+            // light the buttons up.
             child: AnimatedOpacity(
-              opacity: _selectedMood == null ? 0.5 : 1,
+              opacity: _selectedMood == null || atCap ? 0.5 : 1,
               duration: const Duration(milliseconds: 200),
               child: Column(
                 children: [
@@ -218,6 +229,13 @@ class _TodayScreenState extends State<TodayScreen> {
             ),
           ),
         ),
+        if (atCap) ...[
+          const SizedBox(height: 8),
+          Center(
+            child: Text("Today's ${AppState.maxDailyEntries}-entry limit is reached.",
+                style: TextStyle(fontSize: 12, color: scheme.error)),
+          ),
+        ],
       ],
     );
   }

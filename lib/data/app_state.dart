@@ -72,6 +72,16 @@ class AppState extends ChangeNotifier {
     return id;
   }
 
+  /// Per-day cap on how many entries can be logged — every entry-creating
+  /// action (Journal's "Complete Entry", Today's two Save buttons,
+  /// Insights' quick check-in) checks this via [hasReachedDailyCap]
+  /// before creating anything. Deleting an entry frees up a slot again —
+  /// this only ever counts *live* entries (see [entriesOn]), not
+  /// soft-deleted ones sitting in history.
+  static const maxDailyEntries = 10;
+
+  bool hasReachedDailyCap(DateTime day) => entriesOn(day).length >= maxDailyEntries;
+
   final List<JournalEntry> _entries = [];
 
   /// Live (non-deleted) entries, newest first.
@@ -92,6 +102,15 @@ class AppState extends ChangeNotifier {
       _entries.where((e) => e.isDeleted && e.isSameDay(day)).toList()
         ..sort((a, b) => b.deletedAt!.compareTo(a.deletedAt!));
 
+  /// Per-day cap on how many deleted entries can pile up in History —
+  /// checked before a live entry is swiped/deleted (it lands in the same
+  /// day's deleted bucket, keyed by its *original* date). Once a day's
+  /// hit this, restoring or permanently deleting something from that
+  /// day's History is what frees up room for another delete.
+  static const maxDeletedEntriesPerDay = 20;
+
+  bool hasReachedDeletedCap(DateTime day) => deletedEntriesOn(day).length >= maxDeletedEntriesPerDay;
+
   List<JournalEntry> entriesOn(DateTime day) =>
       _entries.where((e) => !e.isDeleted && e.isSameDay(day)).toList()
         ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
@@ -107,7 +126,13 @@ class AppState extends ChangeNotifier {
   /// untouched — titles are user-owned (typed at creation, or edited
   /// directly on the detail screen) and shouldn't be silently overwritten
   /// just because the mood pill was tapped.
-  void updateEntry(String id, {Mood? mood, String? text, String? title, List<String>? tags}) {
+  void updateEntry(String id,
+      {Mood? mood,
+      String? text,
+      String? title,
+      List<String>? tags,
+      String? themeName,
+      bool clearThemeName = false}) {
     _replaceEntry(
       id,
       (e) => JournalEntry(
@@ -121,6 +146,7 @@ class AppState extends ChangeNotifier {
         deletedAt: e.deletedAt,
         photos: e.photos,
         voiceNote: e.voiceNote,
+        themeName: clearThemeName ? null : (themeName ?? e.themeName),
       ),
     );
   }
@@ -137,6 +163,15 @@ class AppState extends ChangeNotifier {
       final updated = [...e.photos]..removeAt(index);
       return e.copyWith(photos: updated);
     });
+  }
+
+  /// Wholesale-replaces an entry's photo list — used by the detail
+  /// screen's Cancel button to restore whatever [addPhoto]/[removePhoto]
+  /// calls happened during an edit session that's being discarded, since
+  /// (unlike the body text) those commit to the entry immediately rather
+  /// than staying a local draft.
+  void setPhotos(String id, List<String> photos) {
+    _replaceEntry(id, (e) => e.copyWith(photos: photos));
   }
 
   /// Sets (replacing any existing one — an entry only has room for one)
@@ -169,6 +204,7 @@ class AppState extends ChangeNotifier {
         deletedAt: e.deletedAt,
         photos: e.photos,
         voiceNote: e.voiceNote,
+        themeName: e.themeName,
       );
     });
   }
@@ -194,6 +230,31 @@ class AppState extends ChangeNotifier {
         deletedAt: e.deletedAt,
         photos: e.photos,
         voiceNote: e.voiceNote,
+        themeName: e.themeName,
+      ),
+    );
+  }
+
+  /// Wholesale-replaces an entry's tags and activities together — same
+  /// Cancel-button-restore purpose as [setPhotos], since [addLabel] and
+  /// [removeLabel] also commit immediately rather than staying a local
+  /// draft. Takes both fields at once (rather than just `tags`) because
+  /// removeLabel can touch either one.
+  void setLabels(String id, List<String> tags, List<String> activities) {
+    _replaceEntry(
+      id,
+      (e) => JournalEntry(
+        id: e.id,
+        dateTime: e.dateTime,
+        mood: e.mood,
+        title: e.title,
+        text: e.text,
+        tags: tags,
+        activities: activities,
+        deletedAt: e.deletedAt,
+        photos: e.photos,
+        voiceNote: e.voiceNote,
+        themeName: e.themeName,
       ),
     );
   }
@@ -297,9 +358,17 @@ class AppState extends ChangeNotifier {
         ).subtract(Duration(days: daysAgo)).add(Duration(hours: hour, minutes: minute));
 
     _entries.addAll([
+      // seed-0/seed-1 deliberately land on *yesterday*, not today — at
+      // fixed clock times (9:30 AM, 2:15 PM), sitting on "today" meant a
+      // freshly created entry timestamped "now" would sort chronologically
+      // *before* them (and so render above them) whenever tested before
+      // 9:30 AM, which just looked like broken ordering. Keeping demo
+      // content off today entirely means Today's Entries always starts
+      // empty and fills purely with whatever's actually created, in true
+      // creation order, with no fixed-time demo data mixed in.
       JournalEntry(
         id: 'seed-0',
-        dateTime: at(0, 9, 30),
+        dateTime: at(1, 9, 30),
         mood: Mood.good,
         title: 'Feeling Peaceful',
         text:
@@ -308,7 +377,7 @@ class AppState extends ChangeNotifier {
       ),
       JournalEntry(
         id: 'seed-1',
-        dateTime: at(0, 14, 15),
+        dateTime: at(1, 14, 15),
         mood: Mood.great,
         title: 'Feeling Productive',
         text: 'Cleared my inbox and finished the project proposal ahead of schedule. Feeling very accomplished.',
@@ -406,6 +475,7 @@ class AppState extends ChangeNotifier {
         'deletedAt': e.deletedAt?.toIso8601String(),
         'photos': e.photos,
         'voiceNote': e.voiceNote,
+        'themeName': e.themeName,
       };
 
   JournalEntry _entryFromJson(Map<String, dynamic> j) => JournalEntry(
@@ -419,6 +489,7 @@ class AppState extends ChangeNotifier {
         deletedAt: j['deletedAt'] != null ? DateTime.parse(j['deletedAt'] as String) : null,
         photos: (j['photos'] as List<dynamic>? ?? []).cast<String>(),
         voiceNote: j['voiceNote'] as String?,
+        themeName: j['themeName'] as String?,
       );
 }
 
