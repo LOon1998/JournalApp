@@ -62,22 +62,21 @@ class _JournalScreenState extends State<JournalScreen> {
   // addQuickEntry) so it's obvious exactly where it landed.
   String? _highlightedEntryId;
 
-  // Scroll targets: _carouselKey for "Complete Entry"/"Save Mood Only"
-  // (brings today's entries back into view), _reflectionKey for "Save &
-  // Write Journal" (jumps straight to the composer).
-  final _carouselKey = GlobalKey();
+  // Page scroll position, for "Complete Entry"/"Save Mood Only" jumping
+  // straight to position 0 (the literal top) — more robust than locating
+  // a specific target widget's key and asking ensureVisible to bring it
+  // into view, which has more ways to silently do nothing (the widget
+  // not built yet, already technically "visible", a stale context, ...).
+  final _scrollController = ScrollController();
+
+  // Scroll target for "Save & Write Journal", which needs to land on a
+  // specific section further down the page, not literally position 0.
   final _reflectionKey = GlobalKey();
 
-  void _scrollTo(GlobalKey key) {
+  void _scrollToTop() {
     void attempt() {
-      final targetContext = key.currentContext;
-      if (targetContext != null && targetContext.mounted) {
-        // alignment: 0 anchors the target to the *top* of the viewport
-        // (not centered) — "Save & Write Journal" should land right at
-        // the composer heading, and "Complete Entry" right at the top of
-        // today's entries, not somewhere in the middle of the screen.
-        Scrollable.ensureVisible(targetContext,
-            duration: const Duration(milliseconds: 400), curve: Curves.easeOut, alignment: 0);
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(0, duration: const Duration(milliseconds: 400), curve: Curves.easeOut);
       }
     }
 
@@ -85,13 +84,27 @@ class _JournalScreenState extends State<JournalScreen> {
     // real phone browser, the on-screen keyboard's own dismiss animation
     // (outside Flutter's control, and highly device/browser dependent)
     // can still be resizing the viewport well after any one fixed delay
-    // we guess, which throws off ensureVisible's math or gets silently
-    // overridden once the resize actually finishes. Unfocusing first,
-    // then attempting the scroll both immediately *and* again after a
-    // delay, means it lands correctly whichever one actually mattered —
-    // immediately when there's no keyboard involved (Save Mood Only,
-    // Save & Write Journal), and the retry corrects for a slow keyboard
-    // dismiss when there is one (Complete Entry).
+    // we guess, which throws off the scroll or gets silently overridden
+    // once the resize actually finishes. Unfocusing first, then
+    // attempting the scroll both immediately *and* again after a delay,
+    // means it lands correctly whichever one actually mattered —
+    // immediately when there's no keyboard involved (Save Mood Only),
+    // and the retry corrects for a slow keyboard dismiss when there is
+    // one (Complete Entry).
+    FocusScope.of(context).unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) => attempt());
+    Future.delayed(const Duration(milliseconds: 400), attempt);
+  }
+
+  void _scrollTo(GlobalKey key) {
+    void attempt() {
+      final targetContext = key.currentContext;
+      if (targetContext != null && targetContext.mounted) {
+        Scrollable.ensureVisible(targetContext,
+            duration: const Duration(milliseconds: 400), curve: Curves.easeOut, alignment: 0);
+      }
+    }
+
     FocusScope.of(context).unfocus();
     WidgetsBinding.instance.addPostFrameCallback((_) => attempt());
     Future.delayed(const Duration(milliseconds: 400), attempt);
@@ -112,17 +125,32 @@ class _JournalScreenState extends State<JournalScreen> {
     });
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final appState = AppStateScope.of(context);
+  // Registered directly on AppState (see didChangeDependencies) instead
+  // of only reading pendingCheckIn/justAddedEntryId inline in
+  // didChangeDependencies — that method is only called when *this*
+  // widget's own inherited dependencies change as part of Flutter's
+  // build phase, which is tied to whether/when this screen's element
+  // actually gets rebuilt. Sitting inside an IndexedStack tab that isn't
+  // currently active, that timing isn't reliable: Today/Insights firing
+  // the signal and switching tabs doesn't guarantee this screen's
+  // didChangeDependencies has already run by the time it becomes
+  // visible, so the scroll/highlight could silently never happen. A
+  // direct ChangeNotifier listener fires synchronously the moment
+  // notifyListeners() is called, with no dependency on build timing —
+  // reliable regardless of which tab is active or how far this screen
+  // happens to be scrolled already.
+  AppState? _appState;
+
+  void _handleAppStateChange() {
+    if (!mounted) return;
+    final appState = _appState!;
     // Picks up the check-in staged from Today (see
     // AppState.handOffCheckInToJournal): its mood becomes this screen's
     // mood, and its activities merge into tags (Journal already renders
     // any tag not in _tagOptions as its own custom chip, so activities
     // like "Exercise" or "Sleep" just show up alongside Family/Work/
     // Health with no extra UI needed). `take...` clears the handoff too,
-    // so this only ever applies once per check-in, not on every rebuild.
+    // so this only ever applies once per check-in, not on every call.
     final pending = appState.takePendingCheckIn();
     if (pending != null) {
       setState(() {
@@ -131,7 +159,8 @@ class _JournalScreenState extends State<JournalScreen> {
       });
       // "Save & Write Journal" should land you ready to type, not just
       // somewhere on the Journal tab — jump straight past today's
-      // entries to the composer.
+      // entries to the composer, no matter how far down this screen
+      // happened to already be scrolled.
       _scrollTo(_reflectionKey);
     }
 
@@ -144,15 +173,31 @@ class _JournalScreenState extends State<JournalScreen> {
       final index = appState.entriesOn(DateTime.now()).indexWhere((e) => e.id == justAddedId);
       if (index != -1) setState(() => _currentPageIndex = index ~/ _entriesPerPage);
       _highlight(justAddedId);
-      _scrollTo(_carouselKey);
+      _scrollToTop();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final appState = AppStateScope.of(context);
+    if (!identical(_appState, appState)) {
+      _appState?.removeListener(_handleAppStateChange);
+      _appState = appState;
+      appState.addListener(_handleAppStateChange);
+      // Covers a signal that was already staged before this listener got
+      // attached (e.g. this screen's very first build).
+      _handleAppStateChange();
     }
   }
 
   @override
   void dispose() {
+    _appState?.removeListener(_handleAppStateChange);
     _textController.dispose();
     _titleController.dispose();
     _tagController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -202,7 +247,7 @@ class _JournalScreenState extends State<JournalScreen> {
     // "Save Mood Only" does — so completing an entry visibly confirms it
     // was created, not just a snackbar that scrolls past.
     _highlight(id);
-    _scrollTo(_carouselKey);
+    _scrollToTop();
   }
 
   Future<void> _addPhoto() async {
@@ -242,6 +287,7 @@ class _JournalScreenState extends State<JournalScreen> {
     final todaysEntries = appState.entriesOn(today);
 
     return ListView(
+      controller: _scrollController,
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
       children: [
         Row(
@@ -258,7 +304,6 @@ class _JournalScreenState extends State<JournalScreen> {
         ),
         const SizedBox(height: 8),
         Container(
-          key: _carouselKey,
           child: todaysEntries.isEmpty
               ? Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
