@@ -3,9 +3,12 @@ import 'package:intl/intl.dart';
 import '../data/app_state.dart';
 import '../models/journal_entry.dart';
 import '../theme/app_theme.dart';
+import '../services/text_measure.dart';
 import '../widgets/app_snackbar.dart';
+import '../widgets/entries_history_row.dart';
 import '../widgets/floating_card.dart';
 import '../widgets/mini_chip.dart';
+import '../widgets/photo_tile.dart';
 import 'deleted_entries_screen.dart';
 import 'entry_detail_screen.dart';
 
@@ -52,25 +55,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600)),
             Row(
               children: [
-                InkWell(
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => DeletedEntriesScreen(day: _selectedDay)),
-                  ),
-                  borderRadius: BorderRadius.circular(999),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.history, size: 16, color: scheme.primary),
-                        const SizedBox(width: 2),
-                        Text('History',
-                            style: TextStyle(color: scheme.primary, fontSize: 12, fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
                 _RoundIconButton(icon: Icons.chevron_left, onTap: () => _shiftMonth(-1)),
                 const SizedBox(width: 8),
                 _RoundIconButton(icon: Icons.chevron_right, onTap: () => _shiftMonth(1)),
@@ -124,8 +108,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        Text(DateFormat.MMMMd().format(_selectedDay),
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(DateFormat.MMMMd().format(_selectedDay),
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
+            EntriesHistoryRow(
+              entryCount: selectedEntries.length,
+              onHistoryTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => DeletedEntriesScreen(day: _selectedDay)),
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 12),
         if (selectedEntries.isEmpty)
           Padding(
@@ -240,11 +235,12 @@ class _EntryDetailCardState extends State<_EntryDetailCard> {
     final entry = widget.entry;
     final scheme = Theme.of(context).colorScheme;
 
-    // Collapsed shows tags only, never the written text — so anything with
-    // text at all has something to reveal. Only worth offering the toggle
-    // when there's actually more to show.
+    // A "Feeling {mood}" subtitle is only worth showing when the title
+    // isn't already that exact string (i.e. a custom title was given) —
+    // otherwise it'd just repeat the title back verbatim underneath it.
+    final hasCustomTitle = entry.title != 'Feeling ${entry.mood.label}';
+
     final labels = entry.labels;
-    final hasOverflow = entry.text.isNotEmpty || labels.length > _collapsedTagCount;
     final visibleTags = _expanded ? labels : labels.take(_collapsedTagCount).toList();
     final hiddenTagCount = labels.length - visibleTags.length;
 
@@ -297,57 +293,87 @@ class _EntryDetailCardState extends State<_EntryDetailCard> {
                 borderRadius: BorderRadius.circular(32),
                 border: Border.all(color: entry.mood.swatch.withValues(alpha: 0.3)),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+              // Needs the card's actual available width to tell whether
+              // entry.text would really wrap/truncate at one line — a
+              // short one-liner never would, and the expand/collapse
+              // chevron would just toggle between two identical-looking
+              // states, so it's only worth showing when there's
+              // something real for it to reveal.
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  const previewStyle = TextStyle(fontSize: 14, height: 1.5);
+                  final textOverflows = entry.text.isNotEmpty &&
+                      textOverflowsOneLine(entry.text, previewStyle, constraints.maxWidth);
+                  final hasOverflow = textOverflows || labels.length > _collapsedTagCount;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: entry.mood.swatch,
-                        child: Icon(entry.mood.icon, color: entry.mood.onSwatch),
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 24,
+                            backgroundColor: entry.mood.swatch,
+                            child: Icon(entry.mood.icon, color: entry.mood.onSwatch),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(entry.title,
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w700, fontSize: 15, color: entry.mood.onSwatch)),
+                                if (hasCustomTitle) ...[
+                                  const SizedBox(height: 2),
+                                  Text('Feeling ${entry.mood.label}',
+                                      style: TextStyle(
+                                          fontSize: 13, fontWeight: FontWeight.w600, color: scheme.outline)),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(DateFormat('h:mm a').format(entry.dateTime),
+                              style: TextStyle(fontSize: 12, color: scheme.outline)),
+                          if (hasOverflow)
+                            IconButton(
+                              onPressed: () => setState(() => _expanded = !_expanded),
+                              icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more,
+                                  size: 20, color: entry.mood.onSwatch),
+                              tooltip: _expanded ? 'Show less' : 'Show more',
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            ),
+                        ],
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      if (entry.text.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          entry.text,
+                          maxLines: _expanded ? null : 1,
+                          overflow: _expanded ? null : TextOverflow.ellipsis,
+                          style: previewStyle.copyWith(color: scheme.onSurfaceVariant),
+                        ),
+                      ],
+                      if (labels.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
                           children: [
-                            Text(entry.title,
-                                style:
-                                    TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: entry.mood.onSwatch)),
-                            Text(DateFormat('h:mm a').format(entry.dateTime),
-                                style: TextStyle(fontSize: 12, color: scheme.outline)),
+                            for (final a in visibleTags) MiniChip(label: a),
+                            if (!_expanded && hiddenTagCount > 0) const MiniChip(label: '...'),
                           ],
                         ),
-                      ),
-                      if (hasOverflow)
-                        IconButton(
-                          onPressed: () => setState(() => _expanded = !_expanded),
-                          icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more,
-                              size: 20, color: entry.mood.onSwatch),
-                          tooltip: _expanded ? 'Show less' : 'Show more',
-                          visualDensity: VisualDensity.compact,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                        ),
-                    ],
-                  ),
-                  if (_expanded && entry.text.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(entry.text, style: TextStyle(color: scheme.onSurfaceVariant, height: 1.5)),
-                  ],
-                  if (labels.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        for (final a in visibleTags) MiniChip(label: a),
-                        if (!_expanded && hiddenTagCount > 0) const MiniChip(label: '...'),
                       ],
-                    ),
-                  ],
-                ],
+                      if (entry.photos.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        PhotoStrip(photos: entry.photos),
+                      ],
+                    ],
+                  );
+                },
               ),
             ),
           ),

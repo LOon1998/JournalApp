@@ -43,26 +43,30 @@ class AuraFab extends StatefulWidget {
   State<AuraFab> createState() => _AuraFabState();
 }
 
-class _AuraFabState extends State<AuraFab> {
+class _AuraFabState extends State<AuraFab> with SingleTickerProviderStateMixin {
   static const _size = 56.0;
   static const _margin = 16.0;
   // Total movement (px) below which a pan gesture still counts as a tap.
   static const _tapSlop = 8.0;
-  // How long the "tap to chat" hint stays up before auto-dismissing —
-  // long enough to notice and read a short line, short enough not to
-  // linger and get in the way.
-  static const _hintDuration = Duration(seconds: 5);
 
   Offset? _position;
   double _dragDistance = 0;
 
+  // Slow pulse on the button itself, only while the hint hasn't been
+  // dismissed yet — draws the eye without a timer that hides the hint on
+  // its own. It only ever stops because the user tapped its ✕, not
+  // because time ran out.
+  late final AnimationController _pulseController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  );
+  late final Animation<double> _pulseOpacity =
+      Tween(begin: 1.0, end: 0.55).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut));
+
   @override
-  void initState() {
-    super.initState();
-    Future.delayed(_hintDuration, () {
-      if (!mounted) return;
-      AppStateScope.of(context).dismissAuraHint();
-    });
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
   }
 
   @override
@@ -80,6 +84,15 @@ class _AuraFabState extends State<AuraFab> {
     final top = _position!.dy.clamp(_margin, maxY);
 
     final showHint = widget.enabled && !appState.hasSeenAuraHint;
+    // .repeat()/.stop() are no-ops when already in that state, so it's
+    // safe to just assert the animation's desired state on every build
+    // rather than diffing against the previous one.
+    if (showHint) {
+      if (!_pulseController.isAnimating) _pulseController.repeat(reverse: true);
+    } else if (_pulseController.isAnimating) {
+      _pulseController.stop();
+      _pulseController.value = 0;
+    }
 
     return Positioned(
       left: left,
@@ -112,15 +125,18 @@ class _AuraFabState extends State<AuraFab> {
                     );
                   }
                 },
-                child: Material(
-                  color: scheme.primary,
-                  shape: const CircleBorder(),
-                  elevation: 6,
-                  shadowColor: scheme.primary.withValues(alpha: 0.4),
-                  child: SizedBox(
-                    width: _size,
-                    height: _size,
-                    child: Icon(Icons.bubble_chart, color: scheme.onPrimary, size: 28),
+                child: FadeTransition(
+                  opacity: _pulseOpacity,
+                  child: Material(
+                    color: scheme.primary,
+                    shape: const CircleBorder(),
+                    elevation: 6,
+                    shadowColor: scheme.primary.withValues(alpha: 0.4),
+                    child: SizedBox(
+                      width: _size,
+                      height: _size,
+                      child: Icon(Icons.chat_bubble_rounded, color: scheme.onPrimary, size: 26),
+                    ),
                   ),
                 ),
               ),
@@ -149,41 +165,52 @@ class _HintBubble extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
       children: [
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 180),
-          child: Material(
-            color: scheme.primaryContainer,
-            borderRadius: BorderRadius.circular(16),
-            elevation: 4,
-            shadowColor: Colors.black.withValues(alpha: 0.2),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Flexible(
-                    child: Text(
-                      'Tap to chat with Aura 💬',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: scheme.onPrimaryContainer,
-                      ),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 190),
+              child: Material(
+                color: scheme.primaryContainer,
+                borderRadius: BorderRadius.circular(20),
+                elevation: 4,
+                shadowColor: Colors.black.withValues(alpha: 0.2),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    "Need to talk? I'm here for you.",
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                      color: scheme.onPrimaryContainer,
                     ),
                   ),
-                  InkWell(
-                    onTap: onDismiss,
-                    borderRadius: BorderRadius.circular(999),
-                    child: Padding(
-                      padding: const EdgeInsets.all(2),
-                      child: Icon(Icons.close, size: 14, color: scheme.onPrimaryContainer),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
+            // Overlaps the bubble's corner rather than sitting inline
+            // with the text — stays a deliberate, separate tap target,
+            // and it's now the *only* way this hint ever goes away (no
+            // more auto-dismiss timer).
+            Positioned(
+              top: -8,
+              right: -8,
+              child: Material(
+                color: scheme.surfaceContainerLowest,
+                shape: const CircleBorder(),
+                elevation: 2,
+                child: InkWell(
+                  onTap: onDismiss,
+                  customBorder: const CircleBorder(),
+                  child: Padding(
+                    padding: const EdgeInsets.all(5),
+                    child: Icon(Icons.close, size: 14, color: scheme.onSurfaceVariant),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
         // Small triangle pointing down at the FAB.
         Padding(

@@ -52,36 +52,55 @@ class _VoiceRecorderSheetState extends State<_VoiceRecorderSheet> {
   }
 
   Future<void> _start() async {
-    final granted = await _recorder.hasPermission();
-    if (!mounted) return;
-    if (!granted) {
-      setState(() => _error = "Microphone permission wasn't granted.");
-      return;
-    }
-    final dir = await getTemporaryDirectory();
-    final path = '${dir.path}/lumina_voice_${DateTime.now().microsecondsSinceEpoch}.m4a';
-    await _recorder.start(
-      const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 64000, numChannels: 1),
-      path: path,
-    );
-    if (!mounted) return;
-    setState(() => _recordingPath = path);
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+    // Was previously unguarded — any failure here (a denied permission
+    // that throws instead of just returning false, an unsupported
+    // encoder, the mic already in use by another app, ...) went
+    // uncaught, leaving this sheet sitting frozen at 00:00 with no
+    // indication anything was wrong. That's the "can't record" bug:
+    // everything downstream of a failed start() was silently skipped.
+    try {
+      final granted = await _recorder.hasPermission();
       if (!mounted) return;
-      setState(() => _elapsed += const Duration(seconds: 1));
-      if (_elapsed >= _maxDuration) _stopAndSave();
-    });
+      if (!granted) {
+        setState(() => _error = "Microphone permission wasn't granted.");
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      final path = '${dir.path}/lumina_voice_${DateTime.now().microsecondsSinceEpoch}.m4a';
+      await _recorder.start(
+        const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 64000, numChannels: 1),
+        path: path,
+      );
+      if (!mounted) return;
+      setState(() => _recordingPath = path);
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _elapsed += const Duration(seconds: 1));
+        if (_elapsed >= _maxDuration) _stopAndSave();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = "Couldn't start recording: $e");
+    }
   }
 
   Future<void> _stopAndSave() async {
     if (_busy) return;
     setState(() => _busy = true);
     _timer?.cancel();
-    final path = await _recorder.stop();
-    final bytes = path == null ? null : await readFileBytes(path);
-    if (path != null) await deleteFileQuietly(path);
-    if (!mounted) return;
-    Navigator.of(context).pop(bytes == null || bytes.isEmpty ? null : base64Encode(bytes));
+    try {
+      final path = await _recorder.stop();
+      final bytes = path == null ? null : await readFileBytes(path);
+      if (path != null) await deleteFileQuietly(path);
+      if (!mounted) return;
+      Navigator.of(context).pop(bytes == null || bytes.isEmpty ? null : base64Encode(bytes));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = "Couldn't save the recording: $e";
+      });
+    }
   }
 
   Future<void> _cancel() async {

@@ -1,13 +1,14 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../data/app_state.dart';
 import '../models/journal_entry.dart';
 import '../services/media_capture.dart';
+import '../services/text_measure.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_snackbar.dart';
+import '../widgets/entries_history_row.dart';
 import '../widgets/mini_chip.dart';
+import '../widgets/photo_tile.dart';
 import '../widgets/voice_note_player.dart';
 import '../widgets/voice_recorder_sheet.dart';
 import 'deleted_entries_screen.dart';
@@ -33,7 +34,12 @@ class _JournalScreenState extends State<JournalScreen> {
   // entries are stored as one JSON blob in SharedPreferences.
   static const _maxJournalLength = 5000;
 
+  // Short on purpose — this is a headline shown on entry cards, not a
+  // second place to write, so it's capped well below the body text.
+  static const _maxTitleLength = 60;
+
   final _textController = TextEditingController();
+  final _titleController = TextEditingController();
   Mood _mood = Mood.good;
   String? _themeName;
   final Set<String> _tags = {};
@@ -44,9 +50,20 @@ class _JournalScreenState extends State<JournalScreen> {
 
   static const _tagOptions = ['Family', 'Work', 'Health'];
 
+  // Briefly highlights (and scrolls to) an entry just created elsewhere
+  // via "Save Mood Only" (see AppState.addQuickEntry) — a GlobalKey per
+  // entry so the highlighted one's on-screen position can be found once
+  // it's actually built. Created lazily and never pruned; harmless since
+  // it just maps entry ids to small, cheap key objects.
+  String? _highlightedEntryId;
+  final Map<String, GlobalKey> _entryKeys = {};
+
+  GlobalKey _keyFor(String id) => _entryKeys.putIfAbsent(id, () => GlobalKey());
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final appState = AppStateScope.of(context);
     // Picks up the check-in staged from Today (see
     // AppState.handOffCheckInToJournal): its mood becomes this screen's
     // mood, and its activities merge into tags (Journal already renders
@@ -54,11 +71,30 @@ class _JournalScreenState extends State<JournalScreen> {
     // like "Exercise" or "Sleep" just show up alongside Family/Work/
     // Health with no extra UI needed). `take...` clears the handoff too,
     // so this only ever applies once per check-in, not on every rebuild.
-    final pending = AppStateScope.of(context).takePendingCheckIn();
+    final pending = appState.takePendingCheckIn();
     if (pending != null) {
       setState(() {
         _mood = pending.mood;
         _tags.addAll(pending.activities);
+      });
+    }
+
+    // Picks up the id staged by "Save Mood Only" (see
+    // AppState.addQuickEntry) — scrolls to that entry once it's on
+    // screen and highlights it for a couple seconds so it's obvious
+    // exactly where the quick save landed.
+    final justAddedId = appState.takeJustAddedEntryId();
+    if (justAddedId != null) {
+      setState(() => _highlightedEntryId = justAddedId);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final targetContext = _keyFor(justAddedId).currentContext;
+        if (targetContext != null) {
+          Scrollable.ensureVisible(targetContext,
+              duration: const Duration(milliseconds: 400), curve: Curves.easeOut, alignment: 0.5);
+        }
+      });
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted && _highlightedEntryId == justAddedId) setState(() => _highlightedEntryId = null);
       });
     }
   }
@@ -66,6 +102,7 @@ class _JournalScreenState extends State<JournalScreen> {
   @override
   void dispose() {
     _textController.dispose();
+    _titleController.dispose();
     _tagController.dispose();
     super.dispose();
   }
@@ -74,21 +111,26 @@ class _JournalScreenState extends State<JournalScreen> {
     // No "you must write something" gate — a check-in's mood (and
     // whatever activities/tags came with it) is already meaningful on its
     // own; text is genuinely optional detail, not a requirement.
+    final customTitle = _titleController.text.trim();
     AppStateScope.of(context).addEntry(
       JournalEntry(
         id: 'journal-${DateTime.now().microsecondsSinceEpoch}',
         dateTime: DateTime.now(),
         mood: _mood,
-        title: 'Feeling ${_mood.label}',
+        title: customTitle.isEmpty ? 'Feeling ${_mood.label}' : customTitle,
         text: _textController.text.trim(),
         tags: _tags.toList(),
-        photos: _photos,
+        // Copy, not the live list — _photos gets cleared right below to
+        // reset the composer, and without a copy that clear would mutate
+        // the exact same list this just-saved entry is holding onto.
+        photos: List<String>.from(_photos),
         voiceNote: _voiceNote,
       ),
     );
     showAppSnackBar(context, 'Entry saved to your journal \u{1F4D6}');
     setState(() {
       _textController.clear();
+      _titleController.clear();
       _tags.clear();
       _themeName = null;
       _photos.clear();
@@ -97,6 +139,13 @@ class _JournalScreenState extends State<JournalScreen> {
   }
 
   Future<void> _addPhoto() async {
+    // Belt-and-suspenders: the "Add More" tile is already hidden once the
+    // cap is hit, so this is only reachable if something else ever calls
+    // _addPhoto directly.
+    if (_photos.length >= JournalEntry.maxPhotos) {
+      showAppSnackBar(context, 'Up to ${JournalEntry.maxPhotos} photos per entry');
+      return;
+    }
     final source = await showPhotoSourceSheet(context);
     if (source == null || !mounted) return;
     final photo = await pickPhotoAsBase64(source);
@@ -106,6 +155,16 @@ class _JournalScreenState extends State<JournalScreen> {
   Future<void> _recordVoiceNote() async {
     final voiceNote = await showVoiceRecorderSheet(context);
     if (voiceNote != null && mounted) setState(() => _voiceNote = voiceNote);
+  }
+
+  void _confirmTag() {
+    final value = _tagController.text.trim();
+    if (value.isEmpty) return;
+    setState(() {
+      _tags.add(value);
+      _tagController.clear();
+      _showTagField = false;
+    });
   }
 
   @override
@@ -120,35 +179,23 @@ class _JournalScreenState extends State<JournalScreen> {
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("Today's Timeline", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text('${todaysEntries.length} ${todaysEntries.length == 1 ? "entry" : "entries"}',
-                    style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
-                InkWell(
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => DeletedEntriesScreen(day: today)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.history, size: 14, color: scheme.primary),
-                      const SizedBox(width: 2),
-                      Text('History',
-                          style: TextStyle(color: scheme.primary, fontSize: 12, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-              ],
+            EntriesHistoryRow(
+              entryCount: todaysEntries.length,
+              onHistoryTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => DeletedEntriesScreen(day: today)),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        for (final entry in todaysEntries) _TimelineRow(key: ValueKey(entry.id), entry: entry),
+        for (final entry in todaysEntries)
+          _TimelineRow(
+            key: _keyFor(entry.id),
+            entry: entry,
+            highlighted: entry.id == _highlightedEntryId,
+          ),
         if (todaysEntries.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -201,6 +248,25 @@ class _JournalScreenState extends State<JournalScreen> {
                 ),
               ),
           ],
+        ),
+        const SizedBox(height: 24),
+        Text('Journal Title (Optional)',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(color: scheme.surfaceContainerLowest, borderRadius: BorderRadius.circular(20)),
+          child: TextField(
+            controller: _titleController,
+            maxLength: _maxTitleLength,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              hintText: 'Title your entry...',
+              counterText: '',
+            ),
+          ),
         ),
         const SizedBox(height: 16),
         Container(
@@ -276,61 +342,41 @@ class _JournalScreenState extends State<JournalScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _addPhoto,
-                icon: const Icon(Icons.add_a_photo),
-                label: const Text('Add Photo'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton.icon(
-                // Re-recording naturally replaces the previous one
-                // (setState just overwrites _voiceNote) — no reason to
-                // force removing it first before allowing another take.
-                onPressed: _recordVoiceNote,
-                icon: const Icon(Icons.mic),
-                label: Text(_voiceNote == null ? 'Voice Note' : 'Re-record'),
-              ),
-            ),
-          ],
+        const SizedBox(height: 24),
+        Text(
+          _photos.isEmpty ? 'Photos (Optional)' : 'Photos (Optional) · ${_photos.length}/${JournalEntry.maxPhotos}',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant),
         ),
-        if (_photos.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 84,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _photos.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, index) => Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.memory(base64Decode(_photos[index]), width: 84, height: 84, fit: BoxFit.cover),
-                  ),
-                  Positioned(
-                    top: 2,
-                    right: 2,
-                    child: InkWell(
-                      onTap: () => setState(() => _photos.removeAt(index)),
-                      customBorder: const CircleBorder(),
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                        child: const Icon(Icons.close, size: 14, color: Colors.white),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 96,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: _photos.length + (_photos.length < JournalEntry.maxPhotos ? 1 : 0),
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              if (index == _photos.length) {
+                return AddPhotoTile(
+                  label: _photos.isEmpty ? 'Add Photo' : 'Add More',
+                  onTap: _addPhoto,
+                );
+              }
+              return PhotoTile(
+                base64Photo: _photos[index],
+                onRemove: () => setState(() => _photos.removeAt(index)),
+              );
+            },
           ),
-        ],
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          // Re-recording naturally replaces the previous one (setState
+          // just overwrites _voiceNote) — no reason to force removing it
+          // first before allowing another take.
+          onPressed: _recordVoiceNote,
+          icon: const Icon(Icons.mic),
+          label: Text(_voiceNote == null ? 'Voice Note' : 'Re-record'),
+        ),
         if (_voiceNote != null) ...[
           const SizedBox(height: 12),
           Row(
@@ -387,15 +433,20 @@ class _JournalScreenState extends State<JournalScreen> {
               Expanded(
                 child: TextField(
                   controller: _tagController,
+                  autofocus: true,
                   decoration: const InputDecoration(hintText: 'Add a tag'),
-                  onSubmitted: (value) {
-                    if (value.trim().isEmpty) return;
-                    setState(() {
-                      _tags.add(value.trim());
-                      _tagController.clear();
-                      _showTagField = false;
-                    });
-                  },
+                  // Enter/"Done" on the keyboard confirms...
+                  onSubmitted: (_) => _confirmTag(),
+                ),
+              ),
+              // ...and so does this tick, for anyone who'd rather tap
+              // than reach for the keyboard's enter/done key.
+              InkWell(
+                onTap: _confirmTag,
+                customBorder: const CircleBorder(),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Icon(Icons.check_circle, color: scheme.primary),
                 ),
               ),
             ],
@@ -421,9 +472,13 @@ class _JournalScreenState extends State<JournalScreen> {
 }
 
 class _TimelineRow extends StatefulWidget {
-  const _TimelineRow({super.key, required this.entry});
+  const _TimelineRow({super.key, required this.entry, this.highlighted = false});
 
   final JournalEntry entry;
+
+  /// Briefly true right after this entry was created via "Save Mood
+  /// Only" — see JournalScreen's didChangeDependencies.
+  final bool highlighted;
 
   @override
   State<_TimelineRow> createState() => _TimelineRowState();
@@ -440,9 +495,11 @@ class _TimelineRowState extends State<_TimelineRow> {
     final scheme = Theme.of(context).colorScheme;
     final labels = entry.labels;
 
-    // Collapsed shows tags only, never the written text — so anything
-    // with text at all has something to reveal on expand.
-    final hasOverflow = entry.text.isNotEmpty || labels.length > _collapsedTagCount;
+    // A "Feeling {mood}" subtitle is only worth showing when the title
+    // isn't already that exact string (i.e. a custom title was given) —
+    // otherwise it'd just repeat the title back verbatim underneath it.
+    final hasCustomTitle = entry.title != 'Feeling ${entry.mood.label}';
+
     final visibleTags = _expanded ? labels : labels.take(_collapsedTagCount).toList();
     final hiddenTagCount = labels.length - visibleTags.length;
 
@@ -489,61 +546,95 @@ class _TimelineRowState extends State<_TimelineRow> {
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => EntryDetailScreen(entryId: entry.id)),
             ),
-            child: Container(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 400),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: scheme.surfaceContainerHighest),
+                border: Border.all(
+                  color: widget.highlighted ? scheme.primary : scheme.surfaceContainerHighest,
+                  width: widget.highlighted ? 2 : 1,
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+              // Needs the card's actual available width to tell whether
+              // entry.text would really wrap/truncate at one line — a
+              // short one-liner like "jjj." never would, and the
+              // expand/collapse chevron would just toggle between two
+              // identical-looking states, so it's only worth showing
+              // when there's something real for it to reveal.
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  const previewStyle = TextStyle(fontSize: 13, height: 1.4);
+                  final textOverflows = entry.text.isNotEmpty &&
+                      textOverflowsOneLine(entry.text, previewStyle, constraints.maxWidth);
+                  final hasOverflow = textOverflows || labels.length > _collapsedTagCount;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: entry.mood.swatch,
-                        child: Icon(entry.mood.icon, size: 18, color: entry.mood.onSwatch),
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: entry.mood.swatch,
+                            child: Icon(entry.mood.icon, size: 18, color: entry.mood.onSwatch),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(entry.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                                if (hasCustomTitle) ...[
+                                  const SizedBox(height: 2),
+                                  Text('Feeling ${entry.mood.label}',
+                                      style: TextStyle(
+                                          fontSize: 13, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(DateFormat('h:mm a').format(entry.dateTime),
+                              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                          if (hasOverflow)
+                            IconButton(
+                              onPressed: () => setState(() => _expanded = !_expanded),
+                              icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more,
+                                  size: 20, color: scheme.onSurfaceVariant),
+                              tooltip: _expanded ? 'Show less' : 'Show more',
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      if (entry.text.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          entry.text,
+                          maxLines: _expanded ? null : 1,
+                          overflow: _expanded ? null : TextOverflow.ellipsis,
+                          style: previewStyle.copyWith(color: scheme.onSurfaceVariant),
+                        ),
+                      ],
+                      if (labels.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
                           children: [
-                            Text(entry.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                            Text(DateFormat('h:mm a').format(entry.dateTime),
-                                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                            for (final label in visibleTags) MiniChip(label: label),
+                            if (!_expanded && hiddenTagCount > 0) const MiniChip(label: '...'),
                           ],
                         ),
-                      ),
-                      if (hasOverflow)
-                        IconButton(
-                          onPressed: () => setState(() => _expanded = !_expanded),
-                          icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more,
-                              size: 20, color: scheme.onSurfaceVariant),
-                          tooltip: _expanded ? 'Show less' : 'Show more',
-                          visualDensity: VisualDensity.compact,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                        ),
-                    ],
-                  ),
-                  if (_expanded && entry.text.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(entry.text, style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant, height: 1.4)),
-                  ],
-                  if (labels.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 4,
-                      runSpacing: 4,
-                      children: [
-                        for (final label in visibleTags) MiniChip(label: label),
-                        if (!_expanded && hiddenTagCount > 0) const MiniChip(label: '...'),
                       ],
-                    ),
-                  ],
-                ],
+                      if (entry.photos.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        PhotoStrip(photos: entry.photos),
+                      ],
+                    ],
+                  );
+                },
               ),
             ),
           ),

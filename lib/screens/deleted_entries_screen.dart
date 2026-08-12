@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import '../data/app_state.dart';
 import '../models/journal_entry.dart';
 import '../theme/app_theme.dart';
+import '../widgets/photo_tile.dart';
+import 'entry_detail_screen.dart';
 
 /// "Deleted Entries" history for a single day — lets you restore an entry
 /// you swiped away by mistake, or permanently delete it (individually or
@@ -128,111 +130,131 @@ class _DeletedEntryCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
-      child: Container(
+      child: Material(
         color: scheme.surfaceContainerLowest,
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(width: 6, color: scheme.errorContainer),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(color: scheme.surfaceContainerHighest, shape: BoxShape.circle),
-                            alignment: Alignment.center,
-                            child: Icon(entry.mood.icon, size: 20, color: scheme.onSurfaceVariant),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Text(DateFormat.yMMMMd().format(entry.dateTime),
-                                          style: TextStyle(
-                                              fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                      decoration: BoxDecoration(
-                                          color: scheme.errorContainer, borderRadius: BorderRadius.circular(999)),
-                                      child: Text('Deleted',
-                                          style: TextStyle(
-                                              fontSize: 11, fontWeight: FontWeight.w600, color: scheme.error)),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 2),
-                                Text(entry.title,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.w700)),
-                              ],
+        // Read-only view — EntryDetailScreen hides every editing
+        // affordance (including its own edit FAB) for a deleted entry,
+        // since it hasn't been restored yet. The Restore/Delete Forever
+        // buttons below sit inside this same tap target but are their
+        // own Material buttons, so tapping them doesn't trigger this
+        // outer navigation.
+        child: InkWell(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => EntryDetailScreen(entryId: entry.id)),
+          ),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(width: 6, color: scheme.errorContainer),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration:
+                                  BoxDecoration(color: scheme.surfaceContainerHighest, shape: BoxShape.circle),
+                              alignment: Alignment.center,
+                              child: Icon(entry.mood.icon, size: 20, color: scheme.onSurfaceVariant),
                             ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(DateFormat.yMMMMd().format(entry.dateTime),
+                                            style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                                color: scheme.onSurfaceVariant)),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                        decoration: BoxDecoration(
+                                            color: scheme.errorContainer, borderRadius: BorderRadius.circular(999)),
+                                        child: Text('Deleted',
+                                            style: TextStyle(
+                                                fontSize: 11, fontWeight: FontWeight.w600, color: scheme.error)),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(entry.title,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(fontWeight: FontWeight.w700)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (entry.text.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            entry.text,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
                           ),
                         ],
-                      ),
-                      if (entry.text.isNotEmpty) ...[
+                        if (entry.photos.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          PhotoStrip(photos: entry.photos),
+                        ],
+                        const SizedBox(height: 16),
+                        Divider(height: 1, color: scheme.surfaceContainerHighest),
                         const SizedBox(height: 12),
-                        Text(
-                          entry.text,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.tonalIcon(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: scheme.primaryContainer,
+                                  foregroundColor: scheme.onPrimaryContainer,
+                                  shape: const StadiumBorder(),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                ),
+                                onPressed: () => AppStateScope.of(context).restoreEntry(entry.id),
+                                icon: const Icon(Icons.restore, size: 18),
+                                label:
+                                    const Text('Restore', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: scheme.error,
+                                  side: BorderSide(color: scheme.errorContainer),
+                                  shape: const StadiumBorder(),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                ),
+                                onPressed: () => _confirmDeleteForever(context),
+                                icon: const Icon(Icons.delete_forever, size: 18),
+                                label: const Text('Delete Forever',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
-                      const SizedBox(height: 16),
-                      Divider(height: 1, color: scheme.surfaceContainerHighest),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: FilledButton.tonalIcon(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: scheme.primaryContainer,
-                                foregroundColor: scheme.onPrimaryContainer,
-                                shape: const StadiumBorder(),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                              ),
-                              onPressed: () => AppStateScope.of(context).restoreEntry(entry.id),
-                              icon: const Icon(Icons.restore, size: 18),
-                              label: const Text('Restore', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: scheme.error,
-                                side: BorderSide(color: scheme.errorContainer),
-                                shape: const StadiumBorder(),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                              ),
-                              onPressed: () => _confirmDeleteForever(context),
-                              icon: const Icon(Icons.delete_forever, size: 18),
-                              label: const Text('Delete Forever', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

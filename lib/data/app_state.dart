@@ -43,6 +43,35 @@ class AppState extends ChangeNotifier {
     return pending;
   }
 
+  /// Id of the entry most recently created via [addQuickEntry] — used the
+  /// same way as [pendingCheckIn]: HomeShell switches to the Journal tab
+  /// while this is non-null, and JournalScreen consumes it (via
+  /// [takeJustAddedEntryId]) to know which entry to scroll to and briefly
+  /// highlight, so "Save Mood Only" shows you exactly where it landed
+  /// instead of just silently filing it away.
+  String? justAddedEntryId;
+
+  /// "Save Mood Only" — creates a complete entry straight from a mood (+
+  /// optional activities) pick, with no trip through Journal's composer,
+  /// unlike [handOffCheckInToJournal] ("Save & Write Journal").
+  void addQuickEntry(Mood mood, List<String> activities) {
+    final entry = JournalEntry(
+      id: 'quick-${DateTime.now().microsecondsSinceEpoch}',
+      dateTime: DateTime.now(),
+      mood: mood,
+      title: 'Feeling ${mood.label}',
+      activities: activities,
+    );
+    addEntry(entry);
+    justAddedEntryId = entry.id;
+  }
+
+  String? takeJustAddedEntryId() {
+    final id = justAddedEntryId;
+    justAddedEntryId = null;
+    return id;
+  }
+
   final List<JournalEntry> _entries = [];
 
   /// Live (non-deleted) entries, newest first.
@@ -74,16 +103,18 @@ class AppState extends ChangeNotifier {
   }
 
   /// Edits an existing (non-deleted or deleted) entry in place. Only the
-  /// fields passed are changed; `title` is re-derived from [mood] when a
-  /// new mood is given, matching how entries are titled on creation.
-  void updateEntry(String id, {Mood? mood, String? text, List<String>? tags}) {
+  /// fields passed are changed. Changing [mood] alone leaves [title]
+  /// untouched — titles are user-owned (typed at creation, or edited
+  /// directly on the detail screen) and shouldn't be silently overwritten
+  /// just because the mood pill was tapped.
+  void updateEntry(String id, {Mood? mood, String? text, String? title, List<String>? tags}) {
     _replaceEntry(
       id,
       (e) => JournalEntry(
         id: e.id,
         dateTime: e.dateTime,
         mood: mood ?? e.mood,
-        title: mood != null ? 'Feeling ${mood.label}' : e.title,
+        title: title ?? e.title,
         text: text ?? e.text,
         tags: tags ?? e.tags,
         activities: e.activities,

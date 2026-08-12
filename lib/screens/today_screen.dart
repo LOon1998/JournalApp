@@ -27,7 +27,7 @@ class _TodayScreenState extends State<TodayScreen> {
     super.dispose();
   }
 
-  void _save() {
+  void _saveAndWriteJournal() {
     final mood = _selectedMood;
     if (mood == null) {
       showAppSnackBar(context, 'Pick a mood first \u{1F642}');
@@ -41,6 +41,35 @@ class _TodayScreenState extends State<TodayScreen> {
     setState(() {
       _selectedMood = null;
       _activities.clear();
+      _customActivityController.clear();
+      _showCustomActivity = false;
+    });
+  }
+
+  void _saveMoodOnly() {
+    final mood = _selectedMood;
+    if (mood == null) {
+      showAppSnackBar(context, 'Pick a mood first \u{1F642}');
+      return;
+    }
+    // Unlike "Save & Write Journal", this commits a complete entry
+    // immediately — Journal then scrolls to and briefly highlights it so
+    // it's obvious exactly where the quick save landed.
+    AppStateScope.of(context).addQuickEntry(mood, _activities.toList());
+    showAppSnackBar(context, 'Mood saved to your journal \u{1F4D6}');
+    setState(() {
+      _selectedMood = null;
+      _activities.clear();
+      _customActivityController.clear();
+      _showCustomActivity = false;
+    });
+  }
+
+  void _confirmCustomActivity() {
+    final text = _customActivityController.text.trim();
+    if (text.isEmpty) return;
+    setState(() {
+      _activities.add(text);
       _customActivityController.clear();
       _showCustomActivity = false;
     });
@@ -124,20 +153,16 @@ class _TodayScreenState extends State<TodayScreen> {
                       Expanded(
                         child: TextField(
                           controller: _customActivityController,
+                          autofocus: true,
                           decoration: const InputDecoration(hintText: 'What else?'),
+                          // Enter/"Done" on the keyboard confirms too, not
+                          // just the tick.
+                          onSubmitted: (_) => _confirmCustomActivity(),
                         ),
                       ),
                       IconButton(
                         icon: Icon(Icons.check_circle, color: scheme.primary),
-                        onPressed: () {
-                          final text = _customActivityController.text.trim();
-                          if (text.isEmpty) return;
-                          setState(() {
-                            _activities.add(text);
-                            _customActivityController.clear();
-                            _showCustomActivity = false;
-                          });
-                        },
+                        onPressed: _confirmCustomActivity,
                       ),
                     ],
                   ),
@@ -148,20 +173,47 @@ class _TodayScreenState extends State<TodayScreen> {
         ),
         const SizedBox(height: 32),
         Center(
-          child: SizedBox(
-            width: double.infinity,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 320),
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: scheme.primary,
-                  foregroundColor: scheme.onPrimary,
-                  shape: const StadiumBorder(),
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                ),
-                onPressed: _save,
-                child: const Text('Save'),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            // Dimmed until a mood is picked, but still tappable — a truly
+            // disabled (onPressed: null) button couldn't show the "pick a
+            // mood first" reminder on tap. Only mood gates this; picking
+            // activities/tags alone doesn't light the buttons up.
+            child: AnimatedOpacity(
+              opacity: _selectedMood == null ? 0.5 : 1,
+              duration: const Duration(milliseconds: 200),
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: scheme.primary,
+                        foregroundColor: scheme.onPrimary,
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, height: 1.3),
+                      ),
+                      onPressed: _saveAndWriteJournal,
+                      child: const Text('Save & Write\nJournal', textAlign: TextAlign.center),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: scheme.primary,
+                        side: BorderSide(color: scheme.primary),
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                      ),
+                      onPressed: _saveMoodOnly,
+                      child: const Text('Save Mood Only'),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

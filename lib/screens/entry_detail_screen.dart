@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
@@ -8,13 +6,19 @@ import '../models/journal_entry.dart';
 import '../services/media_capture.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_snackbar.dart';
+import '../widgets/photo_tile.dart';
 import '../widgets/voice_note_player.dart';
 import '../widgets/voice_recorder_sheet.dart';
 
 /// Full-page detail/edit view for a single entry — reached by tapping an
 /// entry on the Journal timeline or a Calendar day-detail card (as
 /// opposed to the small inline expand/collapse chevron each row already
-/// has, which stays for a quick peek without leaving the list).
+/// has, which stays for a quick peek without leaving the list). Also
+/// reached from the Deleted Entries history, in which case the entry is
+/// shown read-only — [JournalEntry.isDeleted] gates every editing
+/// affordance (mood, title, tags, photos, voice note, and the edit FAB
+/// itself) off, since a deleted entry has no business being edited in
+/// place before it's restored.
 ///
 /// Looks the entry up live by [entryId] every build rather than holding a
 /// snapshot passed in from the caller, so edits/restores/deletes made
@@ -32,12 +36,19 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
   // for why (generous safety ceiling, not a real writing limit).
   static const _maxTextLength = 5000;
 
+  // Matches Journal composer's title cap — see the comment there.
+  static const _maxTitleLength = 60;
+
   bool _editingText = false;
   final _textController = TextEditingController();
+
+  bool _editingTitle = false;
+  final _titleController = TextEditingController();
 
   @override
   void dispose() {
     _textController.dispose();
+    _titleController.dispose();
     super.dispose();
   }
 
@@ -58,22 +69,49 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
 
   void _saveText(BuildContext context, AppState appState, JournalEntry entry) {
     appState.updateEntry(entry.id, text: _textController.text.trim());
+    // Leaving edit mode retires the title editor too, if it was left
+    // mid-edit — save it rather than silently abandoning it.
+    if (_editingTitle) _saveTitle(appState, entry);
     showAppSnackBar(context, 'Entry saved');
     setState(() => _editingText = false);
   }
 
   void _cancelEditingText(JournalEntry entry) {
-    // The underlying entry was never touched by editing — only the draft
-    // in _textController was — so "cancelling" just means throwing that
-    // draft away and dropping out of edit mode; nothing to undo on the
-    // AppState side.
+    // The underlying entry was never touched by editing — only the drafts
+    // in _textController and _titleController were — so "cancelling" just
+    // means throwing those drafts away and dropping out of edit mode;
+    // nothing to undo on the AppState side.
     setState(() {
       _editingText = false;
       _textController.text = entry.text;
+      _editingTitle = false;
+      _titleController.text = entry.title;
     });
   }
 
+  void _startEditingTitle(JournalEntry entry) {
+    _titleController.text = entry.title;
+    setState(() => _editingTitle = true);
+  }
+
+  // No separate cancel here (unlike the body text editor) — tapping away
+  // always confirms, same as the tag "+" field below. Saving a blank title
+  // just falls back to the mood-based default rather than leaving the
+  // entry with an empty headline.
+  void _saveTitle(AppState appState, JournalEntry entry) {
+    final trimmed = _titleController.text.trim();
+    appState.updateEntry(entry.id, title: trimmed.isEmpty ? 'Feeling ${entry.mood.label}' : trimmed);
+    setState(() => _editingTitle = false);
+  }
+
   Future<void> _addPhoto(BuildContext context, AppState appState, JournalEntry entry) async {
+    // Belt-and-suspenders: the "Add More" tile is already hidden once the
+    // cap is hit, so this is only reachable if something else ever calls
+    // _addPhoto directly.
+    if (entry.photos.length >= JournalEntry.maxPhotos) {
+      showAppSnackBar(context, 'Up to ${JournalEntry.maxPhotos} photos per entry');
+      return;
+    }
     final source = await showPhotoSourceSheet(context);
     if (source == null || !context.mounted) return;
     final photo = await pickPhotoAsBase64(source);
@@ -129,6 +167,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
       builder: (context, _) {
         final entry = _findEntry(appState);
         final scheme = Theme.of(context).colorScheme;
+        final canEdit = entry != null && !entry.isDeleted;
 
         if (entry == null) {
           // Deleted permanently (e.g. via History) while this screen was
@@ -169,7 +208,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
             children: [
               Center(
                 child: InkWell(
-                  onTap: () => _pickMood(context, appState, entry),
+                  onTap: canEdit ? () => _pickMood(context, appState, entry) : null,
                   borderRadius: BorderRadius.circular(999),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -179,7 +218,10 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                       children: [
                         Text(entry.mood.emoji, style: const TextStyle(fontSize: 18)),
                         const SizedBox(width: 8),
-                        Text(entry.title,
+                        // The mood's own label, not entry.title — title is
+                        // now an independently editable headline (below)
+                        // and may not have anything to do with the mood.
+                        Text('Feeling ${entry.mood.label}',
                             style: TextStyle(fontWeight: FontWeight.w700, color: entry.mood.onSwatch)),
                       ],
                     ),
@@ -188,9 +230,139 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
               ),
               const SizedBox(height: 12),
               Center(
+                // The title is only editable while the entry itself is in
+                // edit mode (the pencil FAB below) — outside of that it's
+                // plain read-only text, no pencil, matching how the body
+                // text and photo-delete buttons are also edit-mode-only.
+                child: !_editingText
+                    ? Text(entry.title,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w600, color: scheme.onSurface))
+                    : _editingTitle
+                        ? TapRegion(
+                            // Tapping outside still auto-saves (same as
+                            // the tag "+" field below), but there's also
+                            // an explicit tick now — tap-outside alone
+                            // isn't an obvious "save" action to everyone.
+                            onTapOutside: (_) => _saveTitle(appState, entry),
+                            child: SizedBox(
+                              width: 280,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: TextField(
+                                      controller: _titleController,
+                                      autofocus: true,
+                                      textAlign: TextAlign.center,
+                                      maxLength: _maxTitleLength,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(fontWeight: FontWeight.w600, color: scheme.onSurface),
+                                      decoration: const InputDecoration(
+                                        isDense: true,
+                                        border: InputBorder.none,
+                                        hintText: 'Title your entry...',
+                                        counterText: '',
+                                      ),
+                                      onSubmitted: (_) => _saveTitle(appState, entry),
+                                    ),
+                                  ),
+                                  InkWell(
+                                    onTap: () => _saveTitle(appState, entry),
+                                    customBorder: const CircleBorder(),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(4),
+                                      child: Icon(Icons.check_circle, size: 20, color: scheme.primary),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : InkWell(
+                            onTap: () => _startEditingTitle(entry),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(entry.title,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleLarge
+                                            ?.copyWith(fontWeight: FontWeight.w600, color: scheme.onSurface),
+                                        overflow: TextOverflow.ellipsis),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Icon(Icons.edit, size: 16, color: scheme.onSurfaceVariant),
+                                ],
+                              ),
+                            ),
+                          ),
+              ),
+              const SizedBox(height: 8),
+              Center(
                 child: Text(_relativeDate(entry.dateTime), style: TextStyle(color: scheme.onSurfaceVariant)),
               ),
               const SizedBox(height: 20),
+              // Its own section, above the written-text card rather than
+              // buried inside it — a voice note is its own kind of
+              // content, not an afterthought tacked onto the text.
+              // Skipped entirely outside edit mode with nothing recorded
+              // yet, same reasoning as the Moments Captured card below.
+              if (entry.voiceNote != null || _editingText) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 20)],
+                  ),
+                  child: entry.voiceNote != null
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            VoiceNotePlayer(base64Audio: entry.voiceNote!),
+                            // Re-record/delete only once the entry itself
+                            // is in edit mode — same gating as the title,
+                            // photos, and tags.
+                            if (_editingText) ...[
+                              const SizedBox(width: 8),
+                              InkWell(
+                                onTap: () => _recordVoiceNote(context, appState, entry),
+                                borderRadius: BorderRadius.circular(999),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(4),
+                                  child: Icon(Icons.mic, size: 20, color: scheme.onSurfaceVariant),
+                                ),
+                              ),
+                              InkWell(
+                                onTap: () => appState.removeVoiceNote(entry.id),
+                                borderRadius: BorderRadius.circular(999),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(4),
+                                  child: Icon(Icons.delete_outline, size: 20, color: scheme.onSurfaceVariant),
+                                ),
+                              ),
+                            ],
+                          ],
+                        )
+                      : OutlinedButton.icon(
+                          onPressed: () => _recordVoiceNote(context, appState, entry),
+                          icon: const Icon(Icons.mic, size: 18),
+                          label: const Text('Add Voice Note'),
+                        ),
+                ),
+                const SizedBox(height: 16),
+              ],
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -248,157 +420,119 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                           _RemovableTagChip(
                             label: tag,
                             onRemove: () => appState.removeLabel(entry.id, tag),
+                            showRemove: canEdit,
                           ),
-                        _AddTagButton(onAdd: (tag) => appState.addLabel(entry.id, tag)),
+                        if (canEdit) _AddTagButton(onAdd: (tag) => appState.addLabel(entry.id, tag)),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        for (var i = 0; i < entry.photos.length; i++)
-                          _PhotoThumbnail(
-                            base64Photo: entry.photos[i],
-                            onRemove: () => appState.removePhoto(entry.id, i),
-                          ),
-                        InkWell(
-                          onTap: () => _addPhoto(context, appState, entry),
-                          customBorder: const CircleBorder(),
-                          child: Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: scheme.outlineVariant),
-                            ),
-                            child: Icon(Icons.add_a_photo_outlined, size: 20, color: scheme.outlineVariant),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    if (entry.voiceNote != null)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          VoiceNotePlayer(base64Audio: entry.voiceNote!),
-                          const SizedBox(width: 8),
-                          InkWell(
-                            onTap: () => _recordVoiceNote(context, appState, entry),
-                            borderRadius: BorderRadius.circular(999),
-                            child: Padding(
-                              padding: const EdgeInsets.all(4),
-                              child: Icon(Icons.mic, size: 20, color: scheme.onSurfaceVariant),
-                            ),
-                          ),
-                          InkWell(
-                            onTap: () => appState.removeVoiceNote(entry.id),
-                            borderRadius: BorderRadius.circular(999),
-                            child: Padding(
-                              padding: const EdgeInsets.all(4),
-                              child: Icon(Icons.delete_outline, size: 20, color: scheme.onSurfaceVariant),
-                            ),
-                          ),
-                        ],
-                      )
-                    else
-                      OutlinedButton.icon(
-                        onPressed: () => _recordVoiceNote(context, appState, entry),
-                        icon: const Icon(Icons.mic, size: 18),
-                        label: const Text('Add Voice Note'),
-                      ),
                   ],
                 ),
               ),
+              // Its own card, not crammed into the one above — a 3-per-row
+              // photo grid next to the written text and tags made that
+              // first card feel cramped, especially with several photos.
+              // Skipped entirely in view mode with no photos yet — an
+              // empty "Moments Captured" card with no way to add one
+              // would just be dead weight.
+              if (entry.photos.isNotEmpty || _editingText) ...[
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 20)],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        // The "x/6" count is only meaningful once you can
+                        // actually do something about it — same edit-mode
+                        // gating as the "Add More" tile and delete
+                        // buttons below.
+                        !_editingText || entry.photos.isEmpty
+                            ? 'Moments Captured'
+                            : 'Moments Captured · ${entry.photos.length}/${JournalEntry.maxPhotos}',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 8),
+                      // Fixed 3-per-row grid rather than Wrap — Wrap would
+                      // let the row hold a different number of tiles
+                      // depending on screen width, which looks
+                      // inconsistent entry to entry; a real grid keeps
+                      // rows of 3 always.
+                      GridView.count(
+                        crossAxisCount: 3,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        mainAxisSpacing: 10,
+                        crossAxisSpacing: 10,
+                        childAspectRatio: 1,
+                        children: [
+                          for (var i = 0; i < entry.photos.length; i++)
+                            PhotoTile(
+                              base64Photo: entry.photos[i],
+                              onRemove: () => appState.removePhoto(entry.id, i),
+                              size: double.infinity,
+                              // Hidden until the entry is put into edit
+                              // mode — a plain view of an entry shouldn't
+                              // be cluttered with delete affordances.
+                              showDeleteButton: _editingText,
+                            ),
+                          if (_editingText && entry.photos.length < JournalEntry.maxPhotos)
+                            AddPhotoTile(
+                              label: entry.photos.isEmpty ? 'Add Photo' : 'Add More',
+                              onTap: () => _addPhoto(context, appState, entry),
+                              size: double.infinity,
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
-          floatingActionButton: _editingText
-              ? Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    FloatingActionButton(
-                      heroTag: 'entry-cancel-${entry.id}',
-                      mini: true,
-                      backgroundColor: scheme.surfaceContainerHigh,
-                      foregroundColor: scheme.onSurfaceVariant,
-                      tooltip: 'Cancel',
-                      onPressed: () => _cancelEditingText(entry),
-                      child: const Icon(Icons.close),
-                    ),
-                    const SizedBox(height: 12),
-                    FloatingActionButton(
-                      heroTag: 'entry-save-${entry.id}',
+          // No edit FAB at all for a deleted entry — it's view-only until
+          // restored.
+          floatingActionButton: !canEdit
+              ? null
+              : _editingText
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        FloatingActionButton(
+                          heroTag: 'entry-cancel-${entry.id}',
+                          mini: true,
+                          backgroundColor: scheme.surfaceContainerHigh,
+                          foregroundColor: scheme.onSurfaceVariant,
+                          tooltip: 'Cancel',
+                          onPressed: () => _cancelEditingText(entry),
+                          child: const Icon(Icons.close),
+                        ),
+                        const SizedBox(height: 12),
+                        FloatingActionButton(
+                          heroTag: 'entry-save-${entry.id}',
+                          backgroundColor: scheme.primary,
+                          foregroundColor: scheme.onPrimary,
+                          tooltip: 'Save',
+                          onPressed: () => _saveText(context, appState, entry),
+                          child: const Icon(Icons.save),
+                        ),
+                      ],
+                    )
+                  : FloatingActionButton(
+                      heroTag: 'entry-edit-${entry.id}',
                       backgroundColor: scheme.primary,
                       foregroundColor: scheme.onPrimary,
-                      tooltip: 'Save',
-                      onPressed: () => _saveText(context, appState, entry),
-                      child: const Icon(Icons.save),
+                      tooltip: 'Edit',
+                      onPressed: () => _startEditingText(entry),
+                      child: const Icon(Icons.edit),
                     ),
-                  ],
-                )
-              : FloatingActionButton(
-                  heroTag: 'entry-edit-${entry.id}',
-                  backgroundColor: scheme.primary,
-                  foregroundColor: scheme.onPrimary,
-                  tooltip: 'Edit',
-                  onPressed: () => _startEditingText(entry),
-                  child: const Icon(Icons.edit),
-                ),
         );
       },
-    );
-  }
-}
-
-/// A photo thumbnail — tap to view full-screen, tap the ✕ to remove.
-class _PhotoThumbnail extends StatelessWidget {
-  const _PhotoThumbnail({required this.base64Photo, required this.onRemove});
-  final String base64Photo;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    final bytes = base64Decode(base64Photo);
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => showDialog<void>(
-            context: context,
-            builder: (context) => Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.all(16),
-              child: GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.memory(bytes, fit: BoxFit.contain),
-                ),
-              ),
-            ),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Image.memory(bytes, width: 56, height: 56, fit: BoxFit.cover),
-          ),
-        ),
-        Positioned(
-          top: -6,
-          right: -6,
-          child: InkWell(
-            onTap: onRemove,
-            customBorder: const CircleBorder(),
-            child: Container(
-              padding: const EdgeInsets.all(3),
-              decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-              child: const Icon(Icons.close, size: 12, color: Colors.white),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -408,28 +542,33 @@ class _PhotoThumbnail extends StatelessWidget {
 /// tap target (unlike e.g. swipe-to-delete on a whole entry, which is
 /// riskier to trigger by accident and still gets a confirm dialog).
 class _RemovableTagChip extends StatelessWidget {
-  const _RemovableTagChip({required this.label, required this.onRemove});
+  const _RemovableTagChip({required this.label, required this.onRemove, this.showRemove = true});
   final String label;
   final VoidCallback onRemove;
+
+  /// Same read-only gating as [PhotoTile.showDeleteButton] — off for a
+  /// deleted entry being viewed, so its tags read as plain chips.
+  final bool showRemove;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.only(left: 14, right: 6, top: 6, bottom: 6),
+      padding: EdgeInsets.only(left: 14, right: showRemove ? 6 : 14, top: 6, bottom: 6),
       decoration: BoxDecoration(color: scheme.surfaceContainerHigh, borderRadius: BorderRadius.circular(999)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
-          InkWell(
-            onTap: onRemove,
-            borderRadius: BorderRadius.circular(999),
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Icon(Icons.close, size: 14, color: scheme.onSurfaceVariant),
+          if (showRemove)
+            InkWell(
+              onTap: onRemove,
+              borderRadius: BorderRadius.circular(999),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(Icons.close, size: 14, color: scheme.onSurfaceVariant),
+              ),
             ),
-          ),
         ],
       ),
     );

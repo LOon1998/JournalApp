@@ -8,6 +8,12 @@ import '../theme/app_theme.dart';
 /// they only differ in which fields are filled in.
 @immutable
 class JournalEntry {
+  /// Per-entry cap on [photos]. Entries are persisted as base64 text
+  /// inside one JSON blob (see [AppState]'s doc comment), so this exists
+  /// to keep that blob — and every single-entry edit's re-serialization
+  /// of it — from growing unbounded, not as an arbitrary UX restriction.
+  static const maxPhotos = 6;
+
   const JournalEntry({
     required this.id,
     required this.dateTime,

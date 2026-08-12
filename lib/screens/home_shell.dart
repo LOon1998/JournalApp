@@ -37,8 +37,11 @@ class _HomeShellState extends State<HomeShell> {
     // AppState.handOffCheckInToJournal) — switch to that tab so the user
     // lands there to actually compose/save it. JournalScreen itself picks
     // the staged check-in up (and clears the handoff) via
-    // didChangeDependencies, independent of this switch.
-    if (appState.pendingCheckIn != null && _index != _journalIndex) {
+    // didChangeDependencies, independent of this switch. Same deal for a
+    // "Save Mood Only" quick entry (AppState.addQuickEntry) — Journal
+    // consumes justAddedEntryId to scroll to and briefly highlight it.
+    final needsJournalTab = appState.pendingCheckIn != null || appState.justAddedEntryId != null;
+    if (needsJournalTab && _index != _journalIndex) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         setState(() => _index = _journalIndex);

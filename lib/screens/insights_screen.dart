@@ -196,13 +196,15 @@ class InsightsScreen extends StatelessWidget {
 /// — a shortcut to the Today tab's mood picker without leaving this
 /// screen. Hides itself once there's already an entry logged today (no
 /// manual dismiss — see [build]); picking an emoji expands it to reveal
-/// "Save & Journal", and tapping anywhere outside the card while nothing's
+/// the same "Save & Write Journal" / "Save Mood Only" pair Today's own
+/// check-in offers, and tapping anywhere outside the card while nothing's
 /// been saved collapses it back down rather than losing the selection
-/// entirely. Tapping "Save & Journal" hands off to Journal exactly the way
+/// entirely. "Save & Write Journal" hands off to Journal exactly the way
 /// Today's own check-in does (see AppState.handOffCheckInToJournal);
-/// HomeShell reacts to that same signal regardless of which screen
-/// triggered it, so no extra wiring is needed here to make the tab switch
-/// happen.
+/// "Save Mood Only" commits immediately instead (see
+/// AppState.addQuickEntry). HomeShell reacts to either signal regardless
+/// of which screen triggered it, so no extra wiring is needed here to
+/// make the tab switch happen.
 class _QuickCheckInCard extends StatefulWidget {
   const _QuickCheckInCard();
 
@@ -280,11 +282,31 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('Save & Journal', style: TextStyle(fontWeight: FontWeight.w700)),
+                            Text('Save & Write Journal', style: TextStyle(fontWeight: FontWeight.w700)),
                             SizedBox(width: 8),
                             Icon(Icons.arrow_forward, size: 18),
                           ],
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: scheme.primary,
+                          side: BorderSide(color: scheme.primary),
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: () {
+                          // Unlike "Save & Write Journal", this commits a
+                          // complete entry immediately — Journal then
+                          // scrolls to and briefly highlights it.
+                          appState.addQuickEntry(_selectedMood!, const []);
+                          setState(() => _selectedMood = null);
+                        },
+                        child: const Text('Save Mood Only', style: TextStyle(fontWeight: FontWeight.w700)),
                       ),
                     ),
                   ],
