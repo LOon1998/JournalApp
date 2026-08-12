@@ -48,6 +48,11 @@ class _JournalScreenState extends State<JournalScreen> {
 
   static const _tagOptions = ['Family', 'Work', 'Health'];
 
+  // Custom ones typed via "+" — separate from the fixed preset options
+  // above. Without a cap, this could grow without bound and push the
+  // whole composer into an ever-longer scroll.
+  static const _maxCustomTags = 8;
+
   // Today's entries show in pages of up to this many (prev/next + dots
   // between pages) rather than as one long scrolling list, or one entry
   // per page — with the 10/day cap that's 2 pages at most.
@@ -227,6 +232,11 @@ class _JournalScreenState extends State<JournalScreen> {
   void _confirmTag() {
     final value = _tagController.text.trim();
     if (value.isEmpty) return;
+    final customCount = _tags.where((t) => !_tagOptions.contains(t)).length;
+    if (customCount >= _maxCustomTags) {
+      showAppSnackBar(context, 'Up to $_maxCustomTags custom tags');
+      return;
+    }
     setState(() {
       _tags.add(value);
       _tagController.clear();
@@ -514,19 +524,22 @@ class _JournalScreenState extends State<JournalScreen> {
               ),
             for (final tag in _tags.where((t) => !_tagOptions.contains(t)))
               _TagChip(label: tag, selected: true, onTap: () => setState(() => _tags.remove(tag))),
-            InkWell(
-              onTap: () => setState(() => _showTagField = !_showTagField),
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: scheme.outlineVariant, width: 2),
+            // Hidden once at the custom-tag cap, rather than still
+            // inviting a tap that _confirmTag would just reject.
+            if (_tags.where((t) => !_tagOptions.contains(t)).length < _maxCustomTags)
+              InkWell(
+                onTap: () => setState(() => _showTagField = !_showTagField),
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: scheme.outlineVariant, width: 2),
+                  ),
+                  child: Icon(Icons.add, size: 18, color: scheme.outlineVariant),
                 ),
-                child: Icon(Icons.add, size: 18, color: scheme.outlineVariant),
               ),
-            ),
           ],
         ),
         if (_showTagField) ...[

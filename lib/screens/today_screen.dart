@@ -21,6 +21,12 @@ class _TodayScreenState extends State<TodayScreen> {
 
   static const _activityOptions = ['Work', 'Family', 'Friends', 'Hobby', 'Exercise', 'Sleep'];
 
+  // Custom ones typed via "Other" — separate from the fixed preset
+  // options above, which are always just a fixed 6, not something that
+  // can keep growing. Without a cap here, this list could grow without
+  // bound and push the whole screen into an ever-longer scroll.
+  static const _maxCustomActivities = 8;
+
   @override
   void dispose() {
     _customActivityController.dispose();
@@ -75,6 +81,11 @@ class _TodayScreenState extends State<TodayScreen> {
   void _confirmCustomActivity() {
     final text = _customActivityController.text.trim();
     if (text.isEmpty) return;
+    final customCount = _activities.where((a) => !_activityOptions.contains(a)).length;
+    if (customCount >= _maxCustomActivities) {
+      showAppSnackBar(context, 'Up to $_maxCustomActivities custom activities');
+      return;
+    }
     setState(() {
       _activities.add(text);
       _customActivityController.clear();
@@ -146,12 +157,16 @@ class _TodayScreenState extends State<TodayScreen> {
                       selected: true,
                       onTap: () => setState(() => _activities.remove(activity)),
                     ),
-                  _ActivityChip(
-                    label: 'Other',
-                    icon: Icons.add,
-                    selected: _showCustomActivity,
-                    onTap: () => setState(() => _showCustomActivity = !_showCustomActivity),
-                  ),
+                  // Hidden once at the custom-activity cap, rather than
+                  // still inviting a tap that _confirmCustomActivity
+                  // would just reject with a snackbar.
+                  if (_activities.where((a) => !_activityOptions.contains(a)).length < _maxCustomActivities)
+                    _ActivityChip(
+                      label: 'Other',
+                      icon: Icons.add,
+                      selected: _showCustomActivity,
+                      onTap: () => setState(() => _showCustomActivity = !_showCustomActivity),
+                    ),
                 ],
               ),
               if (_showCustomActivity) ...[
@@ -260,8 +275,12 @@ class _MoodOption extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 96,
-              height: 96,
+              // Smaller than before (was 96) — more likely to fit the
+              // whole check-in on one screen without scrolling, which
+              // mattered more than the extra size once there could also
+              // be several rows of activity chips below.
+              width: 72,
+              height: 72,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: mood.swatch.withValues(alpha: selected ? 1 : 0.6),
@@ -271,9 +290,9 @@ class _MoodOption extends StatelessWidget {
                   width: 3,
                 ),
               ),
-              child: Text(mood.emoji, style: const TextStyle(fontSize: 44)),
+              child: Text(mood.emoji, style: const TextStyle(fontSize: 32)),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               mood.label,
               style: TextStyle(

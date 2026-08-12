@@ -40,6 +40,12 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
   // Matches Journal composer's title cap — see the comment there.
   static const _maxTitleLength = 60;
 
+  // Journal's composer caps *custom* tags at 8 (on top of its 3 fixed
+  // presets); this screen has no preset/custom split, so the same 8
+  // applies to the total here instead — same reasoning (an unbounded
+  // tag list pushes the screen into an ever-longer scroll).
+  static const _maxTags = 8;
+
   bool _editingText = false;
   final _textController = TextEditingController();
 
@@ -517,7 +523,18 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                             // covers the deleted-entry read-only case too.
                             showRemove: _editingText,
                           ),
-                        if (_editingText) _AddTagButton(onAdd: (tag) => appState.addLabel(entry.id, tag)),
+                        // Hidden once at the tag cap, rather than still
+                        // inviting a tap that would just add past it.
+                        if (_editingText && entry.labels.length < _maxTags)
+                          _AddTagButton(
+                            onAdd: (tag) {
+                              if (entry.labels.length >= _maxTags) {
+                                showAppSnackBar(context, 'Up to $_maxTags tags per entry');
+                                return;
+                              }
+                              appState.addLabel(entry.id, tag);
+                            },
+                          ),
                       ],
                     ),
                     const SizedBox(height: 16),

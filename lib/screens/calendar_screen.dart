@@ -20,8 +20,14 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
+  // Same page size as Journal's own entries carousel and Deleted
+  // Entries — a day can hold up to 10 live entries, which was a long
+  // scroll shown all at once.
+  static const _entriesPerPage = 5;
+
   late DateTime _visibleMonth;
   late DateTime _selectedDay;
+  int _currentPageIndex = 0;
 
   @override
   void initState() {
@@ -100,7 +106,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     entries: entries,
                     selected: isSelected,
                     today: isToday,
-                    onTap: () => setState(() => _selectedDay = date),
+                    onTap: () => setState(() {
+                      _selectedDay = date;
+                      _currentPageIndex = 0;
+                    }),
                   );
                 },
               ),
@@ -128,7 +137,56 @@ class _CalendarScreenState extends State<CalendarScreen> {
             child: Text('No entries on this day yet.', style: TextStyle(color: scheme.onSurfaceVariant)),
           )
         else
-          for (final entry in selectedEntries) _EntryDetailCard(key: ValueKey(entry.id), entry: entry),
+          Builder(
+            builder: (context) {
+              // Pages of up to _entriesPerPage entries — not the whole
+              // day's list at once, which could run to 10 entries and a
+              // very long scroll.
+              final pageCount = (selectedEntries.length / _entriesPerPage).ceil();
+              final page = _currentPageIndex.clamp(0, pageCount - 1);
+              final pageStart = page * _entriesPerPage;
+              final pageEnd = (pageStart + _entriesPerPage).clamp(0, selectedEntries.length);
+              final pageEntries = selectedEntries.sublist(pageStart, pageEnd);
+              return Column(
+                children: [
+                  for (final entry in pageEntries) _EntryDetailCard(key: ValueKey(entry.id), entry: entry),
+                  if (pageCount > 1) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          onPressed: page > 0 ? () => setState(() => _currentPageIndex = page - 1) : null,
+                          icon: const Icon(Icons.chevron_left),
+                          visualDensity: VisualDensity.compact,
+                          tooltip: 'Previous page',
+                        ),
+                        for (var i = 0; i < pageCount; i++)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 3),
+                            child: Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: i == page ? scheme.primary : scheme.surfaceContainerHighest,
+                              ),
+                            ),
+                          ),
+                        IconButton(
+                          onPressed:
+                              page < pageCount - 1 ? () => setState(() => _currentPageIndex = page + 1) : null,
+                          icon: const Icon(Icons.chevron_right),
+                          visualDensity: VisualDensity.compact,
+                          tooltip: 'Next page',
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
       ],
     );
   }

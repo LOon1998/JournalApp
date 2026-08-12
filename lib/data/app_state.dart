@@ -445,27 +445,61 @@ class AppState extends ChangeNotifier {
       // Purged on every launch, not just when History is opened — the
       // per-day deleted cap alone only bounds a single day's bucket, not
       // how much accumulates across every day the app's ever been used.
-      final purgedAny = _purgeExpiredDeletedEntries();
+      final purgedExpired = _purgeExpiredDeletedEntries();
+      // hasReachedDeletedCap only ever blocks a day's bucket from
+      // *growing* past 20 going forward — it can't retroactively trim
+      // entries that piled up past that before the cap existed (or from
+      // restored backups/imports). This brings any such day back down to
+      // 20 by dropping its oldest deletions first, same "most recent
+      // wins" tiebreak deletedEntriesOn already sorts by.
+      final trimmedOverCap = _trimDeletedEntriesOverCap();
       notifyListeners();
-      if (purgedAny) _persist();
+      if (purgedExpired || trimmedOverCap) _persist();
     } catch (_) {
       // Corrupt/missing prefs — keep demo data only.
     }
   }
 
   /// Permanently removes deleted entries that have sat in History longer
-  /// than [deletedEntryExpiry] — the same "empties itself after 30 days"
+  /// than [deletedEntryExpiry] — the same "empties itself after a while"
   /// convention as Gmail/Photos' own Trash, so total storage stays
   /// bounded no matter how long the app's been used, rather than only
   /// ever growing as more gets deleted over months/years. Returns
   /// whether anything was actually removed.
-  static const deletedEntryExpiry = Duration(days: 30);
+  static const deletedEntryExpiry = Duration(days: 7);
 
   bool _purgeExpiredDeletedEntries() {
     final cutoff = DateTime.now().subtract(deletedEntryExpiry);
     final before = _entries.length;
     _entries.removeWhere((e) => e.isDeleted && e.deletedAt!.isBefore(cutoff));
     return _entries.length != before;
+  }
+
+  /// Brings any day's deleted bucket that's already over
+  /// [maxDeletedEntriesPerDay] back down to it, permanently dropping
+  /// that day's *oldest* deletions first. Returns whether anything was
+  /// actually removed.
+  bool _trimDeletedEntriesOverCap() {
+    final deleted = _entries.where((e) => e.isDeleted).toList();
+    // If the total is already within the cap, every individual day's
+    // bucket necessarily is too — cheap skip for the common case.
+    if (deleted.length <= maxDeletedEntriesPerDay) return false;
+
+    final byDay = <String, List<JournalEntry>>{};
+    for (final e in deleted) {
+      final key = '${e.dateTime.year}-${e.dateTime.month}-${e.dateTime.day}';
+      byDay.putIfAbsent(key, () => []).add(e);
+    }
+
+    final idsToRemove = <String>{};
+    for (final dayEntries in byDay.values) {
+      if (dayEntries.length <= maxDeletedEntriesPerDay) continue;
+      dayEntries.sort((a, b) => b.deletedAt!.compareTo(a.deletedAt!)); // most recently deleted first
+      idsToRemove.addAll(dayEntries.skip(maxDeletedEntriesPerDay).map((e) => e.id));
+    }
+    if (idsToRemove.isEmpty) return false;
+    _entries.removeWhere((e) => idsToRemove.contains(e.id));
+    return true;
   }
 
   Future<void> _persist() async {
