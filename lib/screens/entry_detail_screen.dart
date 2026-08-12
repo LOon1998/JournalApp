@@ -38,7 +38,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
   static const _maxTextLength = 5000;
 
   // Matches Journal composer's title cap — see the comment there.
-  static const _maxTitleLength = 60;
+  static const _maxTitleLength = 40;
 
   // Journal's composer caps *custom* tags at 8 (on top of its 3 fixed
   // presets); this screen has no preset/custom split, so the same 8
@@ -292,6 +292,16 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
         final cardColor = themeColor == null
             ? scheme.surfaceContainerLowest
             : Color.alphaBlend(themeColor.withValues(alpha: 0.35), scheme.surfaceContainerLowest);
+        // Tag chips need their own contrast fix in light mode: a plain
+        // grey chip barely reads against a white/near-white ("White"
+        // theme, or no theme at all) card, so that case keeps grey, but
+        // any actual color tint already gives the card its own hue, so
+        // the chip flips to plain white there instead — same swap the
+        // composer's tag input and content box use. Dark mode is
+        // untouched, since its own colors already contrast fine.
+        final isWhiteTheme = entry?.themeName == null || entry?.themeName == 'White';
+        final tagChipColor =
+            scheme.brightness == Brightness.dark ? null : (isWhiteTheme ? scheme.surfaceContainerHigh : Colors.white);
 
         if (entry == null) {
           // Deleted permanently (e.g. via History) while this screen was
@@ -309,22 +319,25 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             leading: BackButton(color: scheme.onSurface),
+            // Share is the only thing this menu offers — no point showing
+            // an empty ⋮ for a deleted entry, which isn't shareable.
             actions: [
-              PopupMenuButton<void>(
-                icon: Icon(Icons.more_vert, color: scheme.onSurface),
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    onTap: () => _shareEntry(entry),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.share_outlined, size: 18),
-                        SizedBox(width: 12),
-                        Text('Share'),
-                      ],
+              if (canEdit)
+                PopupMenuButton<void>(
+                  icon: Icon(Icons.more_vert, color: scheme.onSurface),
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      onTap: () => _shareEntry(entry),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.share_outlined, size: 18),
+                          SizedBox(width: 12),
+                          Text('Share'),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
             ],
           ),
           body: ListView(
@@ -421,8 +434,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                                         style: Theme.of(context)
                                             .textTheme
                                             .titleLarge
-                                            ?.copyWith(fontWeight: FontWeight.w600, color: scheme.onSurface),
-                                        overflow: TextOverflow.ellipsis),
+                                            ?.copyWith(fontWeight: FontWeight.w600, color: scheme.onSurface)),
                                   ),
                                   const SizedBox(width: 6),
                                   Icon(Icons.edit, size: 16, color: scheme.onSurfaceVariant),
@@ -522,6 +534,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                             // true when canEdit already is, so this
                             // covers the deleted-entry read-only case too.
                             showRemove: _editingText,
+                            color: tagChipColor,
                           ),
                         // Hidden once at the tag cap, rather than still
                         // inviting a tap that would just add past it.
@@ -546,10 +559,16 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                             minLines: 6,
                             maxLength: _maxTextLength,
                             style: TextStyle(fontSize: 16, height: 1.6, color: scheme.onSurface),
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               border: InputBorder.none,
                               hintText: 'Write your thoughts here...',
                               counterText: '',
+                              // Otherwise this falls back to the app-wide
+                              // input fill (a flat grey), which ignores
+                              // the entry's Writing Theme entirely — same
+                              // white/grey swap as the tag chips above.
+                              filled: true,
+                              fillColor: tagChipColor,
                             ),
                           )
                         : Text(
@@ -725,7 +744,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
 /// tap target (unlike e.g. swipe-to-delete on a whole entry, which is
 /// riskier to trigger by accident and still gets a confirm dialog).
 class _RemovableTagChip extends StatelessWidget {
-  const _RemovableTagChip({required this.label, required this.onRemove, this.showRemove = true});
+  const _RemovableTagChip({required this.label, required this.onRemove, this.showRemove = true, this.color});
   final String label;
   final VoidCallback onRemove;
 
@@ -733,12 +752,17 @@ class _RemovableTagChip extends StatelessWidget {
   /// deleted entry being viewed, so its tags read as plain chips.
   final bool showRemove;
 
+  /// Background override so the chip stays visible against the card's own
+  /// Writing Theme tint — see EntryDetailScreen's _tagChipColor. Falls back
+  /// to the plain neutral chip color when not given.
+  final Color? color;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: EdgeInsets.only(left: 14, right: showRemove ? 6 : 14, top: 6, bottom: 6),
-      decoration: BoxDecoration(color: scheme.surfaceContainerHigh, borderRadius: BorderRadius.circular(999)),
+      decoration: BoxDecoration(color: color ?? scheme.surfaceContainerHigh, borderRadius: BorderRadius.circular(999)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -772,6 +796,9 @@ class _AddTagButton extends StatefulWidget {
 }
 
 class _AddTagButtonState extends State<_AddTagButton> {
+  // Matches Journal composer's tag length cap — see the comment there.
+  static const _maxTagLength = 15;
+
   bool _adding = false;
   final _controller = TextEditingController();
 
@@ -818,11 +845,13 @@ class _AddTagButtonState extends State<_AddTagButton> {
               child: TextField(
                 controller: _controller,
                 autofocus: true,
+                maxLength: _maxTagLength,
                 style: const TextStyle(fontSize: 13),
                 decoration: const InputDecoration(
                   isDense: true,
                   hintText: 'New tag',
                   contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  counterText: '',
                 ),
                 onSubmitted: (_) => _confirm(),
               ),

@@ -295,7 +295,7 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('Save & Write Journal', style: TextStyle(fontWeight: FontWeight.w700)),
+                            Text('Continue & Write Journal', style: TextStyle(fontWeight: FontWeight.w700)),
                             SizedBox(width: 8),
                             Icon(Icons.arrow_forward, size: 18),
                           ],

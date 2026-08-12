@@ -13,7 +13,12 @@ import 'deleted_entries_screen.dart';
 import 'entry_detail_screen.dart';
 
 class CalendarScreen extends StatefulWidget {
-  const CalendarScreen({super.key});
+  const CalendarScreen({super.key, this.active = true});
+
+  /// Whether this tab is the one currently showing — see JournalScreen's
+  /// matching field for why this is needed (IndexedStack keeps every
+  /// tab's State alive even while hidden).
+  final bool active;
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -29,12 +34,27 @@ class _CalendarScreenState extends State<CalendarScreen> {
   late DateTime _selectedDay;
   int _currentPageIndex = 0;
 
+  // Which entry card (if any) is expanded — lifted up here for the same
+  // reason as Journal's own timeline: only one card open at a time, and
+  // reset to collapsed after returning from viewing/editing any entry.
+  String? _expandedEntryId;
+
   @override
   void initState() {
     super.initState();
     final now = DateTime.now();
     _visibleMonth = DateTime(now.year, now.month);
     _selectedDay = DateTime(now.year, now.month, now.day);
+  }
+
+  @override
+  void didUpdateWidget(covariant CalendarScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Switched away to another bottom-nav tab — collapse whatever entry
+    // card was expanded, same as Journal's own tab does.
+    if (oldWidget.active && !widget.active && _expandedEntryId != null) {
+      setState(() => _expandedEntryId = null);
+    }
   }
 
   void _shiftMonth(int delta) {
@@ -109,6 +129,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     onTap: () => setState(() {
                       _selectedDay = date;
                       _currentPageIndex = 0;
+                      _expandedEntryId = null;
                     }),
                   );
                 },
@@ -149,17 +170,38 @@ class _CalendarScreenState extends State<CalendarScreen> {
               final pageEntries = selectedEntries.sublist(pageStart, pageEnd);
               return Column(
                 children: [
-                  for (final entry in pageEntries) _EntryDetailCard(key: ValueKey(entry.id), entry: entry),
+                  for (final entry in pageEntries)
+                    _EntryDetailCard(
+                      key: ValueKey(entry.id),
+                      entry: entry,
+                      expanded: entry.id == _expandedEntryId,
+                      onToggleExpand: () =>
+                          setState(() => _expandedEntryId = _expandedEntryId == entry.id ? null : entry.id),
+                      onOpened: () {
+                        if (mounted) setState(() => _expandedEntryId = null);
+                      },
+                    ),
                   if (pageCount > 1) ...[
                     const SizedBox(height: 4),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        IconButton(
-                          onPressed: page > 0 ? () => setState(() => _currentPageIndex = page - 1) : null,
-                          icon: const Icon(Icons.chevron_left),
-                          visualDensity: VisualDensity.compact,
-                          tooltip: 'Previous page',
+                        Visibility(
+                          visible: page > 0,
+                          maintainSize: true,
+                          maintainAnimation: true,
+                          maintainState: true,
+                          child: IconButton(
+                            onPressed: page > 0
+                                ? () => setState(() {
+                                      _currentPageIndex = page - 1;
+                                      _expandedEntryId = null;
+                                    })
+                                : null,
+                            icon: const Icon(Icons.chevron_left),
+                            visualDensity: VisualDensity.compact,
+                            tooltip: 'Previous page',
+                          ),
                         ),
                         for (var i = 0; i < pageCount; i++)
                           Padding(
@@ -173,12 +215,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               ),
                             ),
                           ),
-                        IconButton(
-                          onPressed:
-                              page < pageCount - 1 ? () => setState(() => _currentPageIndex = page + 1) : null,
-                          icon: const Icon(Icons.chevron_right),
-                          visualDensity: VisualDensity.compact,
-                          tooltip: 'Next page',
+                        Visibility(
+                          visible: page < pageCount - 1,
+                          maintainSize: true,
+                          maintainAnimation: true,
+                          maintainState: true,
+                          child: IconButton(
+                            onPressed: page < pageCount - 1
+                                ? () => setState(() {
+                                      _currentPageIndex = page + 1;
+                                      _expandedEntryId = null;
+                                    })
+                                : null,
+                            icon: const Icon(Icons.chevron_right),
+                            visualDensity: VisualDensity.compact,
+                            tooltip: 'Next page',
+                          ),
                         ),
                       ],
                     ),
@@ -237,7 +289,11 @@ class _DayCell extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: selected ? scheme.tertiaryContainer : Colors.transparent,
+          // Plain light grey instead of the tertiary (green) container —
+          // the green read as too high-contrast for what's just a
+          // selection highlight, not something that needs to stand out
+          // like a mood color.
+          color: selected ? scheme.surfaceContainerHighest : Colors.transparent,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -247,7 +303,7 @@ class _DayCell extends StatelessWidget {
               '$day',
               style: TextStyle(
                 fontWeight: selected || today ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? scheme.onTertiaryContainer : scheme.onSurface,
+                color: scheme.onSurface,
               ),
             ),
             const SizedBox(height: 2),
@@ -284,22 +340,30 @@ class _DayCell extends StatelessWidget {
   }
 }
 
-class _EntryDetailCard extends StatefulWidget {
-  const _EntryDetailCard({super.key, required this.entry});
+class _EntryDetailCard extends StatelessWidget {
+  const _EntryDetailCard({
+    super.key,
+    required this.entry,
+    required this.expanded,
+    required this.onToggleExpand,
+    required this.onOpened,
+  });
   final JournalEntry entry;
 
-  @override
-  State<_EntryDetailCard> createState() => _EntryDetailCardState();
-}
+  /// Whether this card is the one currently expanded — only one entry
+  /// card is ever expanded at a time, tracked by the parent so expanding
+  /// one collapses whichever was open before.
+  final bool expanded;
+  final VoidCallback onToggleExpand;
 
-class _EntryDetailCardState extends State<_EntryDetailCard> {
+  /// Called after returning from viewing/editing this entry, so the
+  /// parent can collapse whatever was expanded.
+  final VoidCallback onOpened;
+
   static const _collapsedTagCount = 3;
-
-  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
-    final entry = widget.entry;
     final scheme = Theme.of(context).colorScheme;
 
     // A "Feeling {mood}" subtitle is only worth showing when the title
@@ -319,7 +383,7 @@ class _EntryDetailCardState extends State<_EntryDetailCard> {
     final moodTextColor = scheme.brightness == Brightness.dark ? entry.mood.swatch : entry.mood.onSwatch;
 
     final labels = entry.labels;
-    final visibleTags = _expanded ? labels : labels.take(_collapsedTagCount).toList();
+    final visibleTags = expanded ? labels : labels.take(_collapsedTagCount).toList();
     final hiddenTagCount = labels.length - visibleTags.length;
 
     return Padding(
@@ -377,9 +441,12 @@ class _EntryDetailCardState extends State<_EntryDetailCard> {
           borderRadius: BorderRadius.circular(32),
           child: InkWell(
             borderRadius: BorderRadius.circular(32),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => EntryDetailScreen(entryId: entry.id)),
-            ),
+            onTap: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => EntryDetailScreen(entryId: entry.id)),
+              );
+              onOpened();
+            },
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -437,10 +504,10 @@ class _EntryDetailCardState extends State<_EntryDetailCard> {
                               style: TextStyle(fontSize: 12, color: scheme.outline)),
                           if (hasOverflow)
                             IconButton(
-                              onPressed: () => setState(() => _expanded = !_expanded),
-                              icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more,
+                              onPressed: onToggleExpand,
+                              icon: Icon(expanded ? Icons.expand_less : Icons.expand_more,
                                   size: 20, color: moodTextColor),
-                              tooltip: _expanded ? 'Show less' : 'Show more',
+                              tooltip: expanded ? 'Show less' : 'Show more',
                               visualDensity: VisualDensity.compact,
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -450,9 +517,14 @@ class _EntryDetailCardState extends State<_EntryDetailCard> {
                       if (entry.text.isNotEmpty) ...[
                         const SizedBox(height: 10),
                         Text(
-                          entry.text,
-                          maxLines: _expanded ? null : 1,
-                          overflow: _expanded ? null : TextOverflow.ellipsis,
+                          // Capped to 100 words even when expanded, and
+                          // maxLines matches Deleted Entries' own 3-line
+                          // preview cap — see journal_screen's matching
+                          // card for why unbounded text (by words or by
+                          // lines) is a bad idea here.
+                          expanded ? truncateWords(entry.text, 100) : entry.text,
+                          maxLines: expanded ? 3 : 1,
+                          overflow: TextOverflow.ellipsis,
                           style: previewStyle.copyWith(color: scheme.onSurfaceVariant),
                         ),
                       ],
@@ -463,7 +535,7 @@ class _EntryDetailCardState extends State<_EntryDetailCard> {
                           runSpacing: 6,
                           children: [
                             for (final a in visibleTags) MiniChip(label: a),
-                            if (!_expanded && hiddenTagCount > 0) const MiniChip(label: '...'),
+                            if (!expanded && hiddenTagCount > 0) const MiniChip(label: '...'),
                           ],
                         ),
                       ],

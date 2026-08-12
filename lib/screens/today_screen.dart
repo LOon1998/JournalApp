@@ -27,6 +27,11 @@ class _TodayScreenState extends State<TodayScreen> {
   // bound and push the whole screen into an ever-longer scroll.
   static const _maxCustomActivities = 8;
 
+  // A custom activity is a short label like a tag, not a place to write —
+  // same cap as Journal/Entry Detail's tag inputs, since these end up
+  // merged into an entry's tags anyway (see AppState.handOffCheckInToJournal).
+  static const _maxActivityLength = 15;
+
   @override
   void dispose() {
     _customActivityController.dispose();
@@ -109,19 +114,42 @@ class _TodayScreenState extends State<TodayScreen> {
               ),
         ),
         const SizedBox(height: 24),
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 16,
-          runSpacing: 16,
+        // Explicit 3-then-2 rows rather than a Wrap — with the smaller
+        // 72px circles, a Wrap fits all 5 on one row on most phone
+        // widths, which isn't the layout this was designed for.
+        Column(
           children: [
-            for (final mood in Mood.values)
-              _MoodOption(
-                mood: mood,
-                selected: _selectedMood == mood,
-                // Tapping the already-selected mood again deselects it,
-                // rather than being stuck once picked.
-                onTap: () => setState(() => _selectedMood = _selectedMood == mood ? null : mood),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (final mood in Mood.values.take(3))
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: _MoodOption(
+                      mood: mood,
+                      selected: _selectedMood == mood,
+                      // Tapping the already-selected mood again deselects it,
+                      // rather than being stuck once picked.
+                      onTap: () => setState(() => _selectedMood = _selectedMood == mood ? null : mood),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (final mood in Mood.values.skip(3))
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: _MoodOption(
+                      mood: mood,
+                      selected: _selectedMood == mood,
+                      onTap: () => setState(() => _selectedMood = _selectedMood == mood ? null : mood),
+                    ),
+                  ),
+              ],
+            ),
           ],
         ),
         const SizedBox(height: 32),
@@ -179,7 +207,8 @@ class _TodayScreenState extends State<TodayScreen> {
                         child: TextField(
                           controller: _customActivityController,
                           autofocus: true,
-                          decoration: const InputDecoration(hintText: 'What else?'),
+                          maxLength: _maxActivityLength,
+                          decoration: const InputDecoration(hintText: 'What else?', counterText: ''),
                           // Enter/"Done" on the keyboard confirms too, not
                           // just the tick.
                           onSubmitted: (_) => _confirmCustomActivity(),
@@ -221,7 +250,7 @@ class _TodayScreenState extends State<TodayScreen> {
                         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, height: 1.3),
                       ),
                       onPressed: _saveAndWriteJournal,
-                      child: const Text('Save & Write\nJournal', textAlign: TextAlign.center),
+                      child: const Text('Continue & Write\nJournal', textAlign: TextAlign.center),
                     ),
                   ),
                   const SizedBox(height: 12),

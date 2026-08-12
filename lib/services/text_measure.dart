@@ -13,3 +13,14 @@ bool textOverflowsOneLine(String text, TextStyle style, double maxWidth) {
   )..layout(maxWidth: maxWidth);
   return painter.didExceedMaxLines;
 }
+
+/// Truncates [text] to at most [maxWords] whitespace-separated words,
+/// appending an ellipsis when anything was cut off. Used so an "expanded"
+/// preview card still shows a bounded amount of text — expanded just means
+/// a taller preview, not the entry's entire body, which is what the detail
+/// screen is for.
+String truncateWords(String text, int maxWords) {
+  final words = text.split(RegExp(r'\s+'));
+  if (words.length <= maxWords) return text;
+  return '${words.take(maxWords).join(' ')}...';
+}

@@ -13,10 +13,29 @@ class SettingsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Lumina', style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w700, fontSize: 26)),
-        actions: [
-          IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).maybePop()),
-        ],
+        // No back arrow and no "Lumina" branding here — this screen
+        // already has its own "Settings" heading right below, and the
+        // close button below is the one way to dismiss.
+        automaticallyImplyLeading: false,
+        // AppBar's own `actions` has its own built-in end padding, which
+        // doesn't line up with where the settings gear icon actually
+        // sits on LuminaTopBar. Rebuilding the same
+        // Padding(horizontal: 24) + Row wrapper LuminaTopBar itself uses
+        // puts this X in that exact same spot instead.
+        titleSpacing: 0,
+        title: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              IconButton(
+                icon: Icon(Icons.close, color: scheme.primary),
+                onPressed: () => Navigator.of(context).maybePop(),
+                tooltip: 'Close',
+              ),
+            ],
+          ),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),

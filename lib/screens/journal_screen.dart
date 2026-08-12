@@ -16,7 +16,13 @@ import 'deleted_entries_screen.dart';
 import 'entry_detail_screen.dart';
 
 class JournalScreen extends StatefulWidget {
-  const JournalScreen({super.key});
+  const JournalScreen({super.key, this.active = true});
+
+  /// Whether this tab is the one currently showing — HomeShell's
+  /// IndexedStack keeps every tab's State alive even while hidden, so
+  /// this is how JournalScreen finds out it's been switched away from,
+  /// to collapse any expanded entry card (see didUpdateWidget below).
+  final bool active;
 
   @override
   State<JournalScreen> createState() => _JournalScreenState();
@@ -31,7 +37,7 @@ class _JournalScreenState extends State<JournalScreen> {
 
   // Short on purpose — this is a headline shown on entry cards, not a
   // second place to write, so it's capped well below the body text.
-  static const _maxTitleLength = 60;
+  static const _maxTitleLength = 40;
 
   final _textController = TextEditingController();
   final _titleController = TextEditingController();
@@ -47,6 +53,11 @@ class _JournalScreenState extends State<JournalScreen> {
   bool _showTagField = false;
 
   static const _tagOptions = ['Family', 'Work', 'Health'];
+
+  // A tag is a short label, not a place to write — long enough for
+  // something like "Doctor Visit" (12 chars) without room for someone
+  // pasting in a whole sentence as a "tag".
+  static const _maxTagLength = 15;
 
   // Custom ones typed via "+" — separate from the fixed preset options
   // above. Without a cap, this could grow without bound and push the
@@ -67,11 +78,41 @@ class _JournalScreenState extends State<JournalScreen> {
   // addQuickEntry) so it's obvious exactly where it landed.
   String? _highlightedEntryId;
 
+  // Which entry card (if any) is expanded — lifted up here instead of
+  // living in each _TimelineRow's own State, so only one card can be open
+  // at a time (expanding one collapses whichever was open before), and so
+  // it can be reset to collapsed after returning from viewing/editing any
+  // entry (see the onOpened callback passed to _TimelineRow below).
+  String? _expandedEntryId;
+
   // Scroll targets: _carouselKey for "Complete Entry"/"Save Mood Only"
   // (brings today's entries back into view), _reflectionKey for "Save &
   // Write Journal" (jumps straight to the composer).
   final _carouselKey = GlobalKey();
   final _reflectionKey = GlobalKey();
+
+  // Drives "anchor to top" directly instead of via Scrollable.ensureVisible
+  // on _carouselKey — that key sits right near the top of the list anyway,
+  // so scrolling straight to offset 0 is both simpler and more reliable
+  // than depending on the key's render object being laid out/measured
+  // correctly by the time the scroll attempt runs.
+  final _scrollController = ScrollController();
+
+  void _scrollToTop() {
+    void attempt() {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(0, duration: const Duration(milliseconds: 400), curve: Curves.easeOut);
+      }
+    }
+
+    // Same belt-and-suspenders timing as _scrollTo below: an immediate
+    // attempt for the common case, plus a delayed retry in case the
+    // on-screen keyboard is still animating closed and the list hasn't
+    // finished resizing yet.
+    FocusScope.of(context).unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) => attempt());
+    Future.delayed(const Duration(milliseconds: 400), attempt);
+  }
 
   void _scrollTo(GlobalKey key) {
     void attempt() {
@@ -107,7 +148,12 @@ class _JournalScreenState extends State<JournalScreen> {
     // reflowed content below (Daily Reflection, Journal Reflection, ...)
     // shifting slightly is expected/fine; jumping the scroll position on
     // every next/prev tap was the more jarring behavior.
-    setState(() => _currentPageIndex = page);
+    // Collapses whatever was expanded too — an expanded card left over
+    // from the previous page doesn't mean anything on this one.
+    setState(() {
+      _currentPageIndex = page;
+      _expandedEntryId = null;
+    });
   }
 
   void _highlight(String entryId) {
@@ -149,7 +195,19 @@ class _JournalScreenState extends State<JournalScreen> {
       final index = appState.entriesOn(DateTime.now()).indexWhere((e) => e.id == justAddedId);
       if (index != -1) setState(() => _currentPageIndex = index ~/ _entriesPerPage);
       _highlight(justAddedId);
-      _scrollTo(_carouselKey);
+      _scrollToTop();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant JournalScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Switched away to another bottom-nav tab — collapse whatever entry
+    // card was expanded, same as switching pages or opening/returning
+    // from an entry. IndexedStack keeps this screen's State alive while
+    // hidden, so nothing else would ever reset it.
+    if (oldWidget.active && !widget.active && _expandedEntryId != null) {
+      setState(() => _expandedEntryId = null);
     }
   }
 
@@ -158,6 +216,7 @@ class _JournalScreenState extends State<JournalScreen> {
     _textController.dispose();
     _titleController.dispose();
     _tagController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -207,7 +266,7 @@ class _JournalScreenState extends State<JournalScreen> {
     // "Save Mood Only" does — so completing an entry visibly confirms it
     // was created, not just a snackbar that scrolls past.
     _highlight(id);
-    _scrollTo(_carouselKey);
+    _scrollToTop();
   }
 
   Future<void> _addPhoto() async {
@@ -244,6 +303,25 @@ class _JournalScreenState extends State<JournalScreen> {
     });
   }
 
+  // Background for the content editor and the tag input — themed to match
+  // the selected Writing Theme swatch. In light mode, "White" would
+  // otherwise blend the field straight into the equally-white/near-white
+  // surrounding card, so that case swaps to grey instead; any other color
+  // already gives the card its own tint, so the field itself stays plain
+  // white for contrast against it. Dark mode is left exactly as before —
+  // the low-alpha blend already reads fine there.
+  Color _composerFillColor(ColorScheme scheme) {
+    if (scheme.brightness == Brightness.dark) {
+      return _themeName == null
+          ? scheme.surfaceContainerLowest
+          : Color.alphaBlend(
+              resolveJournalThemeColor(_themeName!, scheme.brightness).withValues(alpha: 0.35),
+              scheme.surfaceContainerLowest);
+    }
+    final isWhiteTheme = _themeName == null || _themeName == 'White';
+    return isWhiteTheme ? scheme.surfaceContainerLow : Colors.white;
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -252,6 +330,7 @@ class _JournalScreenState extends State<JournalScreen> {
     final todaysEntries = appState.entriesOn(today);
 
     return ListView(
+      controller: _scrollController,
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
       children: [
         Row(
@@ -295,6 +374,12 @@ class _JournalScreenState extends State<JournalScreen> {
                               key: ValueKey(entry.id),
                               entry: entry,
                               highlighted: entry.id == _highlightedEntryId,
+                              expanded: entry.id == _expandedEntryId,
+                              onToggleExpand: () => setState(
+                                  () => _expandedEntryId = _expandedEntryId == entry.id ? null : entry.id),
+                              onOpened: () {
+                                if (mounted) setState(() => _expandedEntryId = null);
+                              },
                             ),
                           ),
                         if (pageCount > 1) ...[
@@ -302,11 +387,20 @@ class _JournalScreenState extends State<JournalScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              IconButton(
-                                onPressed: page > 0 ? () => _goToPage(page - 1) : null,
-                                icon: const Icon(Icons.chevron_left),
-                                visualDensity: VisualDensity.compact,
-                                tooltip: 'Previous page',
+                              // Hidden rather than just disabled at the ends —
+                              // maintainSize keeps its slot reserved so the
+                              // dots don't jump sideways when it disappears.
+                              Visibility(
+                                visible: page > 0,
+                                maintainSize: true,
+                                maintainAnimation: true,
+                                maintainState: true,
+                                child: IconButton(
+                                  onPressed: page > 0 ? () => _goToPage(page - 1) : null,
+                                  icon: const Icon(Icons.chevron_left),
+                                  visualDensity: VisualDensity.compact,
+                                  tooltip: 'Previous page',
+                                ),
                               ),
                               for (var i = 0; i < pageCount; i++)
                                 Padding(
@@ -320,11 +414,17 @@ class _JournalScreenState extends State<JournalScreen> {
                                     ),
                                   ),
                                 ),
-                              IconButton(
-                                onPressed: page < pageCount - 1 ? () => _goToPage(page + 1) : null,
-                                icon: const Icon(Icons.chevron_right),
-                                visualDensity: VisualDensity.compact,
-                                tooltip: 'Next page',
+                              Visibility(
+                                visible: page < pageCount - 1,
+                                maintainSize: true,
+                                maintainAnimation: true,
+                                maintainState: true,
+                                child: IconButton(
+                                  onPressed: page < pageCount - 1 ? () => _goToPage(page + 1) : null,
+                                  icon: const Icon(Icons.chevron_right),
+                                  visualDensity: VisualDensity.compact,
+                                  tooltip: 'Next page',
+                                ),
                               ),
                             ],
                           ),
@@ -388,11 +488,7 @@ class _JournalScreenState extends State<JournalScreen> {
         const SizedBox(height: 16),
         Container(
           decoration: BoxDecoration(
-            color: _themeName == null
-                ? scheme.surfaceContainerLowest
-                : Color.alphaBlend(
-                    resolveJournalThemeColor(_themeName!, scheme.brightness).withValues(alpha: 0.35),
-                    scheme.surfaceContainerLowest),
+            color: _composerFillColor(scheme),
             borderRadius: BorderRadius.circular(32),
           ),
           padding: const EdgeInsets.all(20),
@@ -550,7 +646,16 @@ class _JournalScreenState extends State<JournalScreen> {
                 child: TextField(
                   controller: _tagController,
                   autofocus: true,
-                  decoration: const InputDecoration(hintText: 'Add a tag'),
+                  maxLength: _maxTagLength,
+                  decoration: InputDecoration(
+                    hintText: 'Add a tag',
+                    counterText: '',
+                    // Matches the content editor's background so it
+                    // reads consistently against the selected Writing
+                    // Theme — see _composerFillColor.
+                    filled: true,
+                    fillColor: _composerFillColor(scheme),
+                  ),
                   // Enter/"Done" on the keyboard confirms...
                   onSubmitted: (_) => _confirmTag(),
                 ),
@@ -587,7 +692,7 @@ class _JournalScreenState extends State<JournalScreen> {
                   ),
                   onPressed: _complete,
                   icon: const Icon(Icons.check_circle),
-                  label: const Text('Complete Entry', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  label: const Text('Save Journal', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                 ),
               ),
               if (appState.hasReachedDailyCap(today)) ...[
@@ -666,8 +771,15 @@ class _DailyReflectionBarState extends State<_DailyReflectionBar> {
   }
 }
 
-class _TimelineRow extends StatefulWidget {
-  const _TimelineRow({super.key, required this.entry, this.highlighted = false});
+class _TimelineRow extends StatelessWidget {
+  const _TimelineRow({
+    super.key,
+    required this.entry,
+    this.highlighted = false,
+    required this.expanded,
+    required this.onToggleExpand,
+    required this.onOpened,
+  });
 
   final JournalEntry entry;
 
@@ -675,18 +787,21 @@ class _TimelineRow extends StatefulWidget {
   /// Only" — see JournalScreen's didChangeDependencies.
   final bool highlighted;
 
-  @override
-  State<_TimelineRow> createState() => _TimelineRowState();
-}
+  /// Whether this card is the one currently expanded — only one entry
+  /// card is ever expanded at a time, tracked by the parent so expanding
+  /// one collapses whichever was open before.
+  final bool expanded;
+  final VoidCallback onToggleExpand;
 
-class _TimelineRowState extends State<_TimelineRow> {
+  /// Called after returning from viewing/editing this entry, so the
+  /// parent can collapse whatever was expanded — an expanded preview
+  /// shouldn't stick around once you've navigated away and back.
+  final VoidCallback onOpened;
+
   static const _collapsedTagCount = 3;
-
-  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
-    final entry = widget.entry;
     final scheme = Theme.of(context).colorScheme;
     final labels = entry.labels;
 
@@ -695,7 +810,7 @@ class _TimelineRowState extends State<_TimelineRow> {
     // otherwise it'd just repeat the title back verbatim underneath it.
     final hasCustomTitle = entry.title != 'Feeling ${entry.mood.label}';
 
-    final visibleTags = _expanded ? labels : labels.take(_collapsedTagCount).toList();
+    final visibleTags = expanded ? labels : labels.take(_collapsedTagCount).toList();
     final hiddenTagCount = labels.length - visibleTags.length;
 
     return Padding(
@@ -756,17 +871,20 @@ class _TimelineRowState extends State<_TimelineRow> {
           borderRadius: BorderRadius.circular(20),
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => EntryDetailScreen(entryId: entry.id)),
-            ),
+            onTap: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => EntryDetailScreen(entryId: entry.id)),
+              );
+              onOpened();
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 400),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: widget.highlighted ? scheme.primary : entry.mood.swatch.withValues(alpha: 0.3),
-                  width: widget.highlighted ? 2 : 1,
+                  color: highlighted ? scheme.primary : entry.mood.swatch.withValues(alpha: 0.3),
+                  width: highlighted ? 2 : 1,
                 ),
               ),
               // Needs the card's actual available width to tell whether
@@ -796,7 +914,8 @@ class _TimelineRowState extends State<_TimelineRow> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(entry.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                                Text(entry.title,
+                                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                                 if (hasCustomTitle) ...[
                                   const SizedBox(height: 2),
                                   Text('Feeling ${entry.mood.label}',
@@ -819,10 +938,10 @@ class _TimelineRowState extends State<_TimelineRow> {
                               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
                           if (hasOverflow)
                             IconButton(
-                              onPressed: () => setState(() => _expanded = !_expanded),
-                              icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more,
+                              onPressed: onToggleExpand,
+                              icon: Icon(expanded ? Icons.expand_less : Icons.expand_more,
                                   size: 20, color: scheme.onSurfaceVariant),
-                              tooltip: _expanded ? 'Show less' : 'Show more',
+                              tooltip: expanded ? 'Show less' : 'Show more',
                               visualDensity: VisualDensity.compact,
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -832,9 +951,16 @@ class _TimelineRowState extends State<_TimelineRow> {
                       if (entry.text.isNotEmpty) ...[
                         const SizedBox(height: 6),
                         Text(
-                          entry.text,
-                          maxLines: _expanded ? null : 1,
-                          overflow: _expanded ? null : TextOverflow.ellipsis,
+                          // Even expanded, this is still just a preview card —
+                          // capped to the first 100 words instead of the
+                          // entry's entire text. maxLines below is capped to
+                          // match Deleted Entries' own preview (3 lines) —
+                          // it's also the real backstop for pathological
+                          // input (one giant run of characters with no
+                          // spaces), which word-splitting alone can't catch.
+                          expanded ? truncateWords(entry.text, 100) : entry.text,
+                          maxLines: expanded ? 3 : 1,
+                          overflow: TextOverflow.ellipsis,
                           style: previewStyle.copyWith(color: scheme.onSurfaceVariant),
                         ),
                       ],
@@ -845,7 +971,7 @@ class _TimelineRowState extends State<_TimelineRow> {
                           runSpacing: 4,
                           children: [
                             for (final label in visibleTags) MiniChip(label: label),
-                            if (!_expanded && hiddenTagCount > 0) const MiniChip(label: '...'),
+                            if (!expanded && hiddenTagCount > 0) const MiniChip(label: '...'),
                           ],
                         ),
                       ],

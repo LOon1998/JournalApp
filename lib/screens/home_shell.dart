@@ -21,17 +21,22 @@ class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
   static const _journalIndex = 2;
-
-  static const _tabs = [
-    InsightsScreen(),
-    TodayScreen(),
-    JournalScreen(),
-    CalendarScreen(),
-  ];
+  static const _calendarIndex = 3;
 
   @override
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
+
+    // Rebuilt (not a static const list) so JournalScreen/CalendarScreen
+    // can be told whether they're the tab currently showing — see their
+    // `active` field. IndexedStack still keys these by position/type, so
+    // this doesn't lose either screen's State when _index changes.
+    final tabs = [
+      const InsightsScreen(),
+      const TodayScreen(),
+      JournalScreen(active: _index == _journalIndex),
+      CalendarScreen(active: _index == _calendarIndex),
+    ];
 
     // A Today check-in was just staged for Journal (see
     // AppState.handOffCheckInToJournal) — switch to that tab so the user
@@ -54,7 +59,7 @@ class _HomeShellState extends State<HomeShell> {
         builder: (context, constraints) {
           return Stack(
             children: [
-              IndexedStack(index: _index, children: _tabs),
+              IndexedStack(index: _index, children: tabs),
               // Always present (never `if (auraEnabled) ...`) so its State
               // — and therefore its dragged-to position — survives being
               // toggled off instead of resetting every time it's shown

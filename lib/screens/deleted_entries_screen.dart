@@ -85,11 +85,17 @@ class _DeletedEntriesScreenState extends State<DeletedEntriesScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      IconButton(
-                        onPressed: page > 0 ? () => setState(() => _currentPageIndex = page - 1) : null,
-                        icon: const Icon(Icons.chevron_left),
-                        visualDensity: VisualDensity.compact,
-                        tooltip: 'Previous page',
+                      Visibility(
+                        visible: page > 0,
+                        maintainSize: true,
+                        maintainAnimation: true,
+                        maintainState: true,
+                        child: IconButton(
+                          onPressed: page > 0 ? () => setState(() => _currentPageIndex = page - 1) : null,
+                          icon: const Icon(Icons.chevron_left),
+                          visualDensity: VisualDensity.compact,
+                          tooltip: 'Previous page',
+                        ),
                       ),
                       for (var i = 0; i < pageCount; i++)
                         Padding(
@@ -103,12 +109,18 @@ class _DeletedEntriesScreenState extends State<DeletedEntriesScreen> {
                             ),
                           ),
                         ),
-                      IconButton(
-                        onPressed:
-                            page < pageCount - 1 ? () => setState(() => _currentPageIndex = page + 1) : null,
-                        icon: const Icon(Icons.chevron_right),
-                        visualDensity: VisualDensity.compact,
-                        tooltip: 'Next page',
+                      Visibility(
+                        visible: page < pageCount - 1,
+                        maintainSize: true,
+                        maintainAnimation: true,
+                        maintainState: true,
+                        child: IconButton(
+                          onPressed:
+                              page < pageCount - 1 ? () => setState(() => _currentPageIndex = page + 1) : null,
+                          icon: const Icon(Icons.chevron_right),
+                          visualDensity: VisualDensity.compact,
+                          tooltip: 'Next page',
+                        ),
                       ),
                     ],
                   ),
@@ -249,7 +261,6 @@ class _DeletedEntryCard extends StatelessWidget {
                                     children: [
                                       Flexible(
                                         child: Text(entry.title,
-                                            overflow: TextOverflow.ellipsis,
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .titleMedium
