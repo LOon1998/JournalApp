@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/app_state.dart';
+import '../widgets/app_snackbar.dart';
 import '../widgets/floating_card.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -164,6 +165,35 @@ class SettingsScreen extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: 20),
+          FloatingCard(
+            color: scheme.tertiaryContainer.withValues(alpha: 0.3),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Icon(Icons.bug_report_outlined, color: scheme.tertiary),
+                  const SizedBox(width: 8),
+                  Text('Testing Tools',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(color: scheme.tertiary, fontWeight: FontWeight.w600)),
+                ]),
+                const SizedBox(height: 4),
+                Text(
+                  "Not a real feature — just here to make QA-ing today's UI states easier.",
+                  style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => _confirmClearToday(context, appState),
+                  icon: const Icon(Icons.restart_alt, size: 18),
+                  label: const Text("Clear Today's Entries"),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 32),
           Center(
             child: ConstrainedBox(
@@ -189,7 +219,29 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$feature — coming soon')));
+    showAppSnackBar(context, '$feature — coming soon');
+  }
+
+  void _confirmClearToday(BuildContext context, AppState appState) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Clear today's entries?"),
+        content: const Text(
+            "Soft-deletes every entry logged today (they're recoverable from History, same as swipe-delete) — lets you re-test things like the Insights check-in card that only show when today has nothing logged yet."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Clear', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      appState.clearTodayEntriesForTesting();
+      showAppSnackBar(context, "Today's entries cleared");
+    }
   }
 
   void _confirmLogOut(BuildContext context) {

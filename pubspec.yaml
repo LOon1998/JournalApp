@@ -40,6 +40,20 @@ dependencies:
   # Local persistence for entries/settings.
   shared_preferences: ^2.3.3
   intl: ^0.19.0
+  # Hands text off to the OS share sheet (Messages, Mail, other apps) —
+  # sharing an entry from its detail page.
+  share_plus: ^10.1.4
+  # Camera/gallery photo capture for journal entries. Its own
+  # imageQuality/maxWidth/maxHeight params handle compression before the
+  # bytes ever reach us, so no separate image-processing package needed.
+  image_picker: ^1.1.2
+  # Microphone recording for voice notes.
+  record: ^5.1.2
+  # Playback for recorded voice notes.
+  audioplayers: ^6.1.0
+  # Temp-file staging while recording/reading picked media, before it's
+  # base64-encoded into the entry and the temp file is discarded.
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:

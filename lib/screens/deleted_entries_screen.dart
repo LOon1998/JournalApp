@@ -4,10 +4,15 @@ import '../data/app_state.dart';
 import '../models/journal_entry.dart';
 import '../theme/app_theme.dart';
 
-/// "Deleted Entries" history — lets you restore an entry you swiped away
-/// by mistake, or permanently delete it (individually or all at once).
+/// "Deleted Entries" history for a single day — lets you restore an entry
+/// you swiped away by mistake, or permanently delete it (individually or
+/// all at once). Scoped to [day] (rather than showing everything ever
+/// deleted across all time) so it matches whichever day you were looking
+/// at when you opened it.
 class DeletedEntriesScreen extends StatelessWidget {
-  const DeletedEntriesScreen({super.key});
+  const DeletedEntriesScreen({super.key, required this.day});
+
+  final DateTime day;
 
   @override
   Widget build(BuildContext context) {
@@ -17,12 +22,19 @@ class DeletedEntriesScreen extends StatelessWidget {
     return AnimatedBuilder(
       animation: appState,
       builder: (context, _) {
-        final deleted = appState.deletedEntries;
+        final deleted = appState.deletedEntriesOn(day);
         return Scaffold(
           appBar: AppBar(
             leading: BackButton(color: scheme.onSurfaceVariant),
-            title: Text('Deleted Entries',
-                style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600, fontSize: 20)),
+            title: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Deleted Entries',
+                    style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600, fontSize: 20)),
+                Text(DateFormat.yMMMMd().format(day),
+                    style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w500)),
+              ],
+            ),
             centerTitle: true,
             actions: [
               TextButton.icon(
@@ -37,7 +49,7 @@ class DeletedEntriesScreen extends StatelessWidget {
             ],
           ),
           body: deleted.isEmpty
-              ? _EmptyState(scheme: scheme)
+              ? _EmptyState(scheme: scheme, day: day)
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
                   itemCount: deleted.length,
@@ -55,7 +67,7 @@ class DeletedEntriesScreen extends StatelessWidget {
       builder: (context) => AlertDialog(
         title: const Text('Permanently delete all?'),
         content: Text(
-            'This will permanently delete all $count deleted ${count == 1 ? 'entry' : 'entries'}. This can\'t be undone.'),
+            'This will permanently delete all $count deleted ${count == 1 ? 'entry' : 'entries'} from ${DateFormat.yMMMMd().format(day)}. This can\'t be undone.'),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
           TextButton(
@@ -66,14 +78,15 @@ class DeletedEntriesScreen extends StatelessWidget {
       ),
     );
     if (confirmed == true) {
-      appState.clearDeletedEntries();
+      appState.clearDeletedEntriesOn(day);
     }
   }
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.scheme});
+  const _EmptyState({required this.scheme, required this.day});
   final ColorScheme scheme;
+  final DateTime day;
 
   @override
   Widget build(BuildContext context) {
@@ -95,7 +108,7 @@ class _EmptyState extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Text(
-              'Entries you delete from your timeline show up here so you can restore them or remove them for good.',
+              'Nothing deleted from ${DateFormat.yMMMMd().format(day)}. Entries you delete show up here so you can restore them or remove them for good.',
               textAlign: TextAlign.center,
               style: TextStyle(color: scheme.onSurfaceVariant),
             ),

@@ -1,4 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Camera (Add Photo) and microphone (Voice Note) — both requested
+         at runtime via image_picker/record's own permission prompts, but
+         declared explicitly here rather than relying solely on each
+         plugin's manifest auto-merge. Camera marked optional so the app
+         still installs on devices/emulators without one. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <application
         android:label="lumina"
         android:name="${applicationName}"

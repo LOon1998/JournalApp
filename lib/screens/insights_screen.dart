@@ -44,8 +44,8 @@ class InsightsScreen extends StatelessWidget {
 
     final activityMoodBuckets = <String, List<Mood>>{};
     for (final e in entries) {
-      for (final activity in e.activities) {
-        activityMoodBuckets.putIfAbsent(activity, () => []).add(e.mood);
+      for (final label in e.labels) {
+        activityMoodBuckets.putIfAbsent(label, () => []).add(e.mood);
       }
     }
     final correlations = activityMoodBuckets.entries.map((entry) {
@@ -64,6 +64,7 @@ class InsightsScreen extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
       children: [
+        const _QuickCheckInCard(),
         Text('Your Mood Journey',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600)),
@@ -189,6 +190,138 @@ class InsightsScreen extends StatelessWidget {
   }
 
   static String _weekdayLetter(int weekday) => const ['M', 'T', 'W', 'T', 'F', 'S', 'S'][weekday - 1];
+}
+
+/// Quick check-in shown at the top of Insights (now the app's first page)
+/// — a shortcut to the Today tab's mood picker without leaving this
+/// screen. Hides itself once there's already an entry logged today (no
+/// manual dismiss — see [build]); picking an emoji expands it to reveal
+/// "Save & Journal", and tapping anywhere outside the card while nothing's
+/// been saved collapses it back down rather than losing the selection
+/// entirely. Tapping "Save & Journal" hands off to Journal exactly the way
+/// Today's own check-in does (see AppState.handOffCheckInToJournal);
+/// HomeShell reacts to that same signal regardless of which screen
+/// triggered it, so no extra wiring is needed here to make the tab switch
+/// happen.
+class _QuickCheckInCard extends StatefulWidget {
+  const _QuickCheckInCard();
+
+  @override
+  State<_QuickCheckInCard> createState() => _QuickCheckInCardState();
+}
+
+class _QuickCheckInCardState extends State<_QuickCheckInCard> {
+  Mood? _selectedMood;
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = AppStateScope.of(context);
+    final alreadyLoggedToday = appState.entriesOn(DateTime.now()).isNotEmpty;
+    if (alreadyLoggedToday) return const SizedBox.shrink();
+
+    final scheme = Theme.of(context).colorScheme;
+    final hour = DateTime.now().hour;
+    final greeting = hour < 12 ? 'Good morning' : (hour < 17 ? 'Good afternoon' : 'Good evening');
+
+    return TapRegion(
+      onTapOutside: (_) {
+        if (_selectedMood != null) setState(() => _selectedMood = null);
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 24),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(32)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('$greeting, ${appState.userName}',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: scheme.onPrimaryContainer)),
+            const SizedBox(height: 4),
+            Text('Ready to capture a moment?',
+                style: TextStyle(color: scheme.onPrimaryContainer.withValues(alpha: 0.8))),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: scheme.surfaceContainerLowest, borderRadius: BorderRadius.circular(20)),
+              child: Column(
+                children: [
+                  Text('How are you feeling right now?',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      for (final mood in Mood.values)
+                        _EmojiButton(
+                          mood: mood,
+                          selected: _selectedMood == mood,
+                          onTap: () => setState(() => _selectedMood = mood),
+                        ),
+                    ],
+                  ),
+                  if (_selectedMood != null) ...[
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: scheme.primary,
+                          foregroundColor: scheme.onPrimary,
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        onPressed: () {
+                          // No activities from this quick picker (it's a
+                          // shortcut, not the full Today form) — Journal's
+                          // tags stay whatever the user adds there.
+                          appState.handOffCheckInToJournal(_selectedMood!, const []);
+                          setState(() => _selectedMood = null);
+                        },
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text('Save & Journal', style: TextStyle(fontWeight: FontWeight.w700)),
+                            SizedBox(width: 8),
+                            Icon(Icons.arrow_forward, size: 18),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmojiButton extends StatelessWidget {
+  const _EmojiButton({required this.mood, required this.selected, required this.onTap});
+  final Mood mood;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 48,
+        height: 48,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? mood.swatch : Theme.of(context).colorScheme.surfaceContainerLow,
+          shape: BoxShape.circle,
+          border: selected ? Border.all(color: mood.onSwatch, width: 2) : null,
+        ),
+        child: Text(mood.emoji, style: const TextStyle(fontSize: 22)),
+      ),
+    );
+  }
 }
 
 class _CorrelationTile extends StatelessWidget {

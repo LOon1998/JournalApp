@@ -7,10 +7,10 @@ class LuminaBottomNav extends StatelessWidget {
   final ValueChanged<int> onTap;
 
   static const _items = [
+    (icon: Icons.bar_chart, label: 'Insights'),
     (icon: Icons.sentiment_satisfied, label: 'Today'),
     (icon: Icons.menu_book, label: 'Journal'),
     (icon: Icons.calendar_month, label: 'Calendar'),
-    (icon: Icons.bar_chart, label: 'Insights'),
   ];
 
   @override

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/app_state.dart';
-import '../models/journal_entry.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_snackbar.dart';
 import '../widgets/floating_card.dart';
 
 /// "Daily Check-in" mockup: quick mood + activity log, distinct from the
@@ -30,24 +30,14 @@ class _TodayScreenState extends State<TodayScreen> {
   void _save() {
     final mood = _selectedMood;
     if (mood == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pick a mood first \u{1F642}')),
-      );
+      showAppSnackBar(context, 'Pick a mood first \u{1F642}');
       return;
     }
-    final appState = AppStateScope.of(context);
-    appState.addEntry(
-      JournalEntry(
-        id: 'checkin-${DateTime.now().microsecondsSinceEpoch}',
-        dateTime: DateTime.now(),
-        mood: mood,
-        title: 'Feeling ${mood.label}',
-        activities: _activities.toList(),
-      ),
-    );
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Check-in saved. Thanks for showing up for yourself \u{1F49A}')),
-    );
+    // Nothing is saved yet — this only stages the check-in for Journal to
+    // turn into an actual entry once "Complete Entry" is pressed there.
+    // Saving here too (as this used to do) was creating a duplicate entry
+    // on top of whatever Journal went on to save.
+    AppStateScope.of(context).handOffCheckInToJournal(mood, _activities.toList());
     setState(() {
       _selectedMood = null;
       _activities.clear();
@@ -107,6 +97,15 @@ class _TodayScreenState extends State<TodayScreen> {
                       onTap: () => setState(() {
                         if (!_activities.remove(activity)) _activities.add(activity);
                       }),
+                    ),
+                  // Custom activities typed via "Other" — without this,
+                  // confirming one added it to _activities but it never
+                  // appeared anywhere, so it looked like nothing happened.
+                  for (final activity in _activities.where((a) => !_activityOptions.contains(a)))
+                    _ActivityChip(
+                      label: activity,
+                      selected: true,
+                      onTap: () => setState(() => _activities.remove(activity)),
                     ),
                   _ActivityChip(
                     label: 'Other',

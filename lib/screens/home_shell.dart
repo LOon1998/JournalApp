@@ -20,23 +20,48 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
+  static const _journalIndex = 2;
+
   static const _tabs = [
+    InsightsScreen(),
     TodayScreen(),
     JournalScreen(),
     CalendarScreen(),
-    InsightsScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
+
+    // A Today check-in was just staged for Journal (see
+    // AppState.handOffCheckInToJournal) — switch to that tab so the user
+    // lands there to actually compose/save it. JournalScreen itself picks
+    // the staged check-in up (and clears the handoff) via
+    // didChangeDependencies, independent of this switch.
+    if (appState.pendingCheckIn != null && _index != _journalIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _index = _journalIndex);
+      });
+    }
+
     return Scaffold(
       appBar: const LuminaTopBar(),
-      body: Stack(
-        children: [
-          IndexedStack(index: _index, children: _tabs),
-          if (appState.auraEnabled) const AuraFab(),
-        ],
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            children: [
+              IndexedStack(index: _index, children: _tabs),
+              // Always present (never `if (auraEnabled) ...`) so its State
+              // — and therefore its dragged-to position — survives being
+              // toggled off instead of resetting every time it's shown
+              // again. `enabled` controls visibility/interactivity inside
+              // AuraFab itself; Positioned must stay a direct child of
+              // Stack, so nothing (e.g. Offstage) can wrap it here.
+              AuraFab(bounds: constraints.biggest, enabled: appState.auraEnabled),
+            ],
+          );
+        },
       ),
       bottomNavigationBar: LuminaBottomNav(
         currentIndex: _index,
