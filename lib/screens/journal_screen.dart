@@ -62,19 +62,14 @@ class _JournalScreenState extends State<JournalScreen> {
   // addQuickEntry) so it's obvious exactly where it landed.
   String? _highlightedEntryId;
 
-  // Scroll target for "Complete Entry" — the only action that navigates
-  // the screen for you, bringing today's entries back into view.
+  // Scroll targets: _carouselKey for "Complete Entry"/"Save Mood Only"
+  // (brings today's entries back into view), _reflectionKey for "Save &
+  // Write Journal" (jumps straight to the composer).
   final _carouselKey = GlobalKey();
+  final _reflectionKey = GlobalKey();
 
   void _scrollTo(GlobalKey key) {
-    // Complete Entry is pressed straight out of the text field, keyboard
-    // still open — its dismiss animation was still resizing the screen
-    // when this ran, throwing off ensureVisible's math (and on a short
-    // screen, competing with it for the same space). Unfocus first and
-    // give the keyboard's own animation time to finish before measuring
-    // anything.
-    FocusScope.of(context).unfocus();
-    Future.delayed(const Duration(milliseconds: 300), () {
+    void attempt() {
       final targetContext = key.currentContext;
       if (targetContext != null && targetContext.mounted) {
         // alignment: 0 anchors the target to the *top* of the viewport
@@ -84,7 +79,22 @@ class _JournalScreenState extends State<JournalScreen> {
         Scrollable.ensureVisible(targetContext,
             duration: const Duration(milliseconds: 400), curve: Curves.easeOut, alignment: 0);
       }
-    });
+    }
+
+    // Complete Entry is pressed straight out of the text field — on a
+    // real phone browser, the on-screen keyboard's own dismiss animation
+    // (outside Flutter's control, and highly device/browser dependent)
+    // can still be resizing the viewport well after any one fixed delay
+    // we guess, which throws off ensureVisible's math or gets silently
+    // overridden once the resize actually finishes. Unfocusing first,
+    // then attempting the scroll both immediately *and* again after a
+    // delay, means it lands correctly whichever one actually mattered —
+    // immediately when there's no keyboard involved (Save Mood Only,
+    // Save & Write Journal), and the retry corrects for a slow keyboard
+    // dismiss when there is one (Complete Entry).
+    FocusScope.of(context).unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) => attempt());
+    Future.delayed(const Duration(milliseconds: 400), attempt);
   }
 
   void _goToPage(int page) {
@@ -119,6 +129,10 @@ class _JournalScreenState extends State<JournalScreen> {
         _mood = pending.mood;
         _tags.addAll(pending.activities);
       });
+      // "Save & Write Journal" should land you ready to type, not just
+      // somewhere on the Journal tab — jump straight past today's
+      // entries to the composer.
+      _scrollTo(_reflectionKey);
     }
 
     // Picks up the id staged by "Save Mood Only" (see
@@ -316,11 +330,14 @@ class _JournalScreenState extends State<JournalScreen> {
         const SizedBox(height: 24),
         const _DailyReflectionBar(),
         const SizedBox(height: 24),
-        Text('Journal Reflection',
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.copyWith(color: scheme.primary, fontWeight: FontWeight.w700)),
+        KeyedSubtree(
+          key: _reflectionKey,
+          child: Text('Journal Reflection',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(color: scheme.primary, fontWeight: FontWeight.w700)),
+        ),
         const SizedBox(height: 24),
         Text('Writing Theme', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
         const SizedBox(height: 8),
@@ -777,6 +794,10 @@ class _TimelineRowState extends State<_TimelineRow> {
                             ),
                           ),
                           const SizedBox(width: 8),
+                          if (entry.photos.isNotEmpty) ...[
+                            Icon(Icons.photo_camera_outlined, size: 14, color: scheme.onSurfaceVariant),
+                            const SizedBox(width: 4),
+                          ],
                           if (entry.voiceNote != null) ...[
                             Icon(Icons.mic, size: 14, color: scheme.onSurfaceVariant),
                             const SizedBox(width: 4),

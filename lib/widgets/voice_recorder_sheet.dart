@@ -80,6 +80,12 @@ class _VoiceRecorderSheetState extends State<_VoiceRecorderSheet> {
           encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.aacLc,
           bitRate: 64000,
           numChannels: 1,
+          // Without this, recordings come straight from the raw mic
+          // input with no boost — quiet on plenty of phones/mics unless
+          // held right up to your mouth. Automatic gain control brings a
+          // quiet recording up to a normal, consistent level.
+          autoGain: true,
+          noiseSuppress: true,
         ),
         path: path,
       );

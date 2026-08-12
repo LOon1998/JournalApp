@@ -205,15 +205,13 @@ class _DayCell extends StatelessWidget {
                         height: 6,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          // The pastel swatch on its own reads as barely
-                          // more than a light smudge against the day
-                          // grid's background — its higher-contrast
-                          // onSwatch companion actually shows up. Same
-                          // brightness-aware swap as the day-detail
-                          // card's title text below, so it stays visible
-                          // in dark mode too (where onSwatch would be the
-                          // low-contrast one instead).
-                          color: scheme.brightness == Brightness.dark ? e.mood.swatch : e.mood.onSwatch,
+                          // Same plain pastel swatch used everywhere else
+                          // a mood shows up as a color (the emoji picker's
+                          // circles, the avatar backgrounds, ...) — the
+                          // higher-contrast onSwatch companion looked
+                          // right in isolation but too harsh/saturated
+                          // for a whole row of small dots.
+                          color: e.mood.swatch,
                         ),
                       ),
                     ),
@@ -369,6 +367,10 @@ class _EntryDetailCardState extends State<_EntryDetailCard> {
                             ),
                           ),
                           const SizedBox(width: 8),
+                          if (entry.photos.isNotEmpty) ...[
+                            Icon(Icons.photo_camera_outlined, size: 14, color: scheme.outline),
+                            const SizedBox(width: 4),
+                          ],
                           if (entry.voiceNote != null) ...[
                             Icon(Icons.mic, size: 14, color: scheme.outline),
                             const SizedBox(width: 4),

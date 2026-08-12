@@ -72,6 +72,9 @@ class _DeletedEntriesScreenState extends State<DeletedEntriesScreen> {
               children: [
                 Text('${deleted.length} of ${AppState.maxDeletedEntriesPerDay} deleted slots',
                     style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                const SizedBox(height: 2),
+                Text('Deleted entries are permanently removed after ${AppState.deletedEntryExpiry.inDays} days.',
+                    style: TextStyle(fontSize: 11, color: scheme.outline)),
                 const SizedBox(height: 12),
                 for (final entry in pageEntries)
                   Padding(
@@ -224,7 +227,8 @@ class _DeletedEntryCard extends StatelessWidget {
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Expanded(
-                                        child: Text(DateFormat.yMMMMd().format(entry.dateTime),
+                                        child: Text(
+                                            '${DateFormat.yMMMMd().format(entry.dateTime)} · ${DateFormat('h:mm a').format(entry.dateTime)}',
                                             style: TextStyle(
                                                 fontSize: 12,
                                                 fontWeight: FontWeight.w600,
@@ -251,6 +255,10 @@ class _DeletedEntryCard extends StatelessWidget {
                                                 .titleMedium
                                                 ?.copyWith(fontWeight: FontWeight.w700)),
                                       ),
+                                      if (entry.photos.isNotEmpty) ...[
+                                        const SizedBox(width: 6),
+                                        Icon(Icons.photo_camera_outlined, size: 15, color: scheme.onSurfaceVariant),
+                                      ],
                                       if (entry.voiceNote != null) ...[
                                         const SizedBox(width: 6),
                                         Icon(Icons.mic, size: 15, color: scheme.onSurfaceVariant),

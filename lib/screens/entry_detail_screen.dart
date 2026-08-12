@@ -502,6 +502,25 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        for (final tag in entry.labels)
+                          _RemovableTagChip(
+                            label: tag,
+                            onRemove: () => appState.removeLabel(entry.id, tag),
+                            // Same edit-mode gating as the title, photos,
+                            // and voice note — _editingText can only be
+                            // true when canEdit already is, so this
+                            // covers the deleted-entry read-only case too.
+                            showRemove: _editingText,
+                          ),
+                        if (_editingText) _AddTagButton(onAdd: (tag) => appState.addLabel(entry.id, tag)),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
                     _editingText
                         ? TextField(
                             controller: _textController,
@@ -538,25 +557,6 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        for (final tag in entry.labels)
-                          _RemovableTagChip(
-                            label: tag,
-                            onRemove: () => appState.removeLabel(entry.id, tag),
-                            // Same edit-mode gating as the title, photos,
-                            // and voice note — _editingText can only be
-                            // true when canEdit already is, so this
-                            // covers the deleted-entry read-only case too.
-                            showRemove: _editingText,
-                          ),
-                        if (_editingText) _AddTagButton(onAdd: (tag) => appState.addLabel(entry.id, tag)),
-                      ],
-                    ),
                   ],
                 ),
               ),

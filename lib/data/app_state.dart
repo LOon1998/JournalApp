@@ -442,10 +442,30 @@ class AppState extends ChangeNotifier {
           .map((e) => _entryFromJson(e as Map<String, dynamic>))
           .toList();
       _entries.addAll(saved);
+      // Purged on every launch, not just when History is opened — the
+      // per-day deleted cap alone only bounds a single day's bucket, not
+      // how much accumulates across every day the app's ever been used.
+      final purgedAny = _purgeExpiredDeletedEntries();
       notifyListeners();
+      if (purgedAny) _persist();
     } catch (_) {
       // Corrupt/missing prefs — keep demo data only.
     }
+  }
+
+  /// Permanently removes deleted entries that have sat in History longer
+  /// than [deletedEntryExpiry] — the same "empties itself after 30 days"
+  /// convention as Gmail/Photos' own Trash, so total storage stays
+  /// bounded no matter how long the app's been used, rather than only
+  /// ever growing as more gets deleted over months/years. Returns
+  /// whether anything was actually removed.
+  static const deletedEntryExpiry = Duration(days: 30);
+
+  bool _purgeExpiredDeletedEntries() {
+    final cutoff = DateTime.now().subtract(deletedEntryExpiry);
+    final before = _entries.length;
+    _entries.removeWhere((e) => e.isDeleted && e.deletedAt!.isBefore(cutoff));
+    return _entries.length != before;
   }
 
   Future<void> _persist() async {
