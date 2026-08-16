@@ -11,14 +11,24 @@ import 'today_screen.dart';
 /// Hosts the four bottom-nav tabs plus the persistent Aura FAB, matching
 /// the shared header/footer chrome across every mockup screen.
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key});
+  const HomeShell({super.key, this.initialIndex = 0});
+
+  /// Which tab to land on first — defaults to Insights (index 0), the
+  /// normal cold-start tab. WelcomeScreen's "Start My First Check-in"
+  /// passes [todayTabIndex] instead, so a brand-new account lands
+  /// somewhere that actually matches that button's promise.
+  final int initialIndex;
+
+  /// Public so callers outside this file (WelcomeScreen) can target the
+  /// Today tab without hardcoding its position in the bottom nav.
+  static const todayTabIndex = 1;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
 
 class _HomeShellState extends State<HomeShell> {
-  int _index = 0;
+  late int _index = widget.initialIndex;
 
   static const _journalIndex = 2;
   static const _calendarIndex = 3;

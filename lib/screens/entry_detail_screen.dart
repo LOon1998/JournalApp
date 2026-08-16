@@ -1,4 +1,10 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../data/app_state.dart';
@@ -6,6 +12,8 @@ import '../models/journal_entry.dart';
 import '../services/media_capture.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_snackbar.dart';
+import '../widgets/entry_share_card.dart';
+import '../widgets/mood_emoji.dart';
 import '../widgets/photo_tile.dart';
 import '../widgets/theme_swatch.dart';
 import '../widgets/voice_note_player.dart';
@@ -64,6 +72,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
   String? _voiceNoteSnapshot;
   String? _titleSnapshot;
   String? _themeNameSnapshot;
+  Mood? _moodSnapshot;
 
   @override
   void dispose() {
@@ -90,6 +99,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
     _voiceNoteSnapshot = entry.voiceNote;
     _titleSnapshot = entry.title;
     _themeNameSnapshot = entry.themeName;
+    _moodSnapshot = entry.mood;
     setState(() => _editingText = true);
   }
 
@@ -107,6 +117,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
       _voiceNoteSnapshot = null;
       _titleSnapshot = null;
       _themeNameSnapshot = null;
+      _moodSnapshot = null;
     });
   }
 
@@ -131,7 +142,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
       } else {
         appState.removeVoiceNote(entry.id);
       }
-      appState.updateEntry(entry.id, title: _titleSnapshot!);
+      appState.updateEntry(entry.id, title: _titleSnapshot!, mood: _moodSnapshot);
       // Same "may legitimately be null" situation as the voice note —
       // an entry with no Writing Theme ever set restores to that, not
       // to whatever was picked mid-edit.
@@ -153,6 +164,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
       _voiceNoteSnapshot = null;
       _titleSnapshot = null;
       _themeNameSnapshot = null;
+      _moodSnapshot = null;
     });
   }
 
@@ -199,7 +211,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
           children: [
             for (final m in Mood.values)
               ListTile(
-                leading: Text(m.emoji, style: const TextStyle(fontSize: 22)),
+                leading: MoodEmoji(mood: m, size: 22),
                 title: Text(m.label),
                 onTap: () => Navigator.pop(context, m),
               ),
@@ -219,11 +231,77 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
     return '$label, ${DateFormat('h:mm a').format(dt)}';
   }
 
-  void _shareEntry(JournalEntry entry) {
+  /// Shares a rendered image of the entry (see EntryShareCard) — with
+  /// any voice note attached alongside it as a separate playable audio
+  /// file, since audio can't go *inside* a static image. Falls back to
+  /// the old plain-text share if image/file sharing isn't actually
+  /// supported here (some desktop browsers don't implement the Web Share
+  /// API's file-sharing extension) — better than the Share button
+  /// silently doing nothing.
+  Future<void> _shareEntry(JournalEntry entry) async {
+    try {
+      final pngBytes = await _captureShareCard(entry);
+      if (!mounted) return;
+      final files = [XFile.fromData(pngBytes, name: 'lumina-entry.png', mimeType: 'image/png')];
+      final voiceNote = entry.voiceNote;
+      if (voiceNote != null) {
+        // Matches VoiceRecorderSheet's own encoder choice exactly (opus/
+        // .webm on web, AAC/.m4a everywhere else) — sharing the wrong
+        // mimeType for the actual bytes could leave the recipient's app
+        // unable to play it back at all.
+        final ext = kIsWeb ? 'webm' : 'm4a';
+        final mimeType = kIsWeb ? 'audio/webm' : 'audio/mp4';
+        files.add(XFile.fromData(base64Decode(voiceNote), name: 'lumina-voice-note.$ext', mimeType: mimeType));
+      }
+      final caption = entry.text.isEmpty ? entry.title : '${entry.title}\n\n${entry.text}';
+      await Share.shareXFiles(files, text: caption, subject: entry.title);
+    } catch (_) {
+      if (!mounted) return;
+      _shareEntryAsText(entry);
+    }
+  }
+
+  void _shareEntryAsText(JournalEntry entry) {
     final buffer = StringBuffer('${entry.mood.emoji} ${entry.title}\n${_relativeDate(entry.dateTime)}');
     if (entry.text.isNotEmpty) buffer.write('\n\n${entry.text}');
     if (entry.labels.isNotEmpty) buffer.write('\n\nTags: ${entry.labels.join(', ')}');
     Share.share(buffer.toString(), subject: entry.title);
+  }
+
+  /// Renders [EntryShareCard] off-screen (via a Positioned way outside the
+  /// visible area, inside this screen's own Overlay) and captures it as a
+  /// PNG — RepaintBoundary.toImage() captures its own layer content
+  /// directly, unaffected by the ancestor Stack clipping anything actually
+  /// visible on screen, so this works regardless of being positioned off
+  /// the edge of the viewport.
+  Future<Uint8List> _captureShareCard(JournalEntry entry) async {
+    final repaintKey = GlobalKey();
+    final overlay = Overlay.of(context);
+    final overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        left: -10000,
+        top: 0,
+        child: Material(
+          type: MaterialType.transparency,
+          child: RepaintBoundary(key: repaintKey, child: EntryShareCard(entry: entry)),
+        ),
+      ),
+    );
+    overlay.insert(overlayEntry);
+    try {
+      // Two frames — the first lays out/paints, the second guarantees any
+      // photo thumbnails (Image.memory, decoded async under the hood)
+      // have actually finished rasterizing before capture; one frame
+      // occasionally caught them still blank.
+      await WidgetsBinding.instance.endOfFrame;
+      await WidgetsBinding.instance.endOfFrame;
+      final boundary = repaintKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      return byteData!.buffer.asUint8List();
+    } finally {
+      overlayEntry.remove();
+    }
   }
 
   // Same daily-cap check as the Deleted Entries list's own Restore
@@ -276,9 +354,15 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
-    return AnimatedBuilder(
-      animation: appState,
-      builder: (context, _) {
+    // A plain Builder (not AnimatedBuilder) — this screen already rebuilds
+    // automatically whenever appState changes, via the AppStateScope.of
+    // dependency above; a second, independent listener on the same
+    // notifier was what caused an intermittent "check that it really is
+    // our descendant" InheritedElement assertion (see main.dart's
+    // _SignedInMaterialApp for the full explanation — same underlying
+    // cause, fixed the same way here).
+    return Builder(
+      builder: (context) {
         final entry = _findEntry(appState);
         final scheme = Theme.of(context).colorScheme;
         final canEdit = entry != null && !entry.isDeleted;
@@ -345,7 +429,12 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
             children: [
               Center(
                 child: InkWell(
-                  onTap: canEdit ? () => _pickMood(context, appState, entry) : null,
+                  // Only tappable in edit mode, same gating as the title,
+                  // tags, photos, and voice note — it used to be tappable
+                  // any time the entry wasn't deleted, with no visual cue
+                  // either way, so it wasn't obvious whether tapping it
+                  // would actually do anything.
+                  onTap: _editingText ? () => _pickMood(context, appState, entry) : null,
                   borderRadius: BorderRadius.circular(999),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -353,13 +442,20 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(entry.mood.emoji, style: const TextStyle(fontSize: 18)),
+                        MoodEmoji(mood: entry.mood, size: 18),
                         const SizedBox(width: 8),
                         // The mood's own label, not entry.title — title is
                         // now an independently editable headline (below)
                         // and may not have anything to do with the mood.
                         Text('Feeling ${entry.mood.label}',
                             style: TextStyle(fontWeight: FontWeight.w700, color: entry.mood.onSwatch)),
+                        // Same edit-affordance pattern as the title's own
+                        // pencil — only shown in edit mode, so it's clear
+                        // this is tappable right when it actually is.
+                        if (_editingText) ...[
+                          const SizedBox(width: 6),
+                          Icon(Icons.edit, size: 14, color: entry.mood.onSwatch),
+                        ],
                       ],
                     ),
                   ),
@@ -403,7 +499,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                                       decoration: const InputDecoration(
                                         isDense: true,
                                         border: InputBorder.none,
-                                        hintText: 'Title your entry...',
+                                        hintText: 'Title your journal...',
                                         counterText: '',
                                       ),
                                       onSubmitted: (_) => _saveTitle(appState, entry),
@@ -550,7 +646,12 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                           ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    // Skipped when the tags Wrap above has nothing in it
+                    // (no tags, and not in edit mode so no "+" button
+                    // either) — otherwise this left a fixed gap of empty
+                    // space above the content text for no reason, instead
+                    // of the text just starting at the top of the card.
+                    if (entry.labels.isNotEmpty || _editingText) const SizedBox(height: 16),
                     _editingText
                         ? TextField(
                             controller: _textController,
@@ -572,7 +673,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                             ),
                           )
                         : Text(
-                            entry.text.isEmpty ? 'No written reflection for this entry yet.' : entry.text,
+                            entry.text.isEmpty ? "No reflection yet — start writing when you're ready." : entry.text,
                             style: TextStyle(
                               fontSize: 16,
                               height: 1.6,

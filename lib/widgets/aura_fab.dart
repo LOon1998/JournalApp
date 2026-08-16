@@ -155,7 +155,7 @@ class _AuraFabState extends State<AuraFab> with SingleTickerProviderStateMixin {
                         child: SizedBox(
                           width: _size,
                           height: _size,
-                          child: Icon(Icons.chat_bubble_rounded, color: scheme.onPrimary, size: 26),
+                          child: Icon(Icons.bubble_chart, color: scheme.onPrimary, size: 26),
                         ),
                       ),
                     ),
@@ -183,11 +183,7 @@ class _HintBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Stack(
+    return Stack(
           children: [
             // Padded in by the same 8px the close button below sits at,
             // so that button lands inside this Stack's own bounds
@@ -200,11 +196,15 @@ class _HintBubble extends StatelessWidget {
                 constraints: const BoxConstraints(maxWidth: 190),
                 child: Material(
                   color: scheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(20),
+                  // An actual speech-bubble shape (rounded body + a small
+                  // tail) instead of a plain rounded rectangle — the tail
+                  // points down toward the FAB this hint belongs to,
+                  // rather than looking like a random floating card.
+                  shape: const _SpeechBubbleShape(tailSize: 10),
                   elevation: 4,
                   shadowColor: Colors.black.withValues(alpha: 0.2),
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 26),
                     child: Text(
                       "Need to talk? I'm here for you.",
                       style: TextStyle(
@@ -240,16 +240,42 @@ class _HintBubble extends StatelessWidget {
               ),
             ),
           ],
-        ),
-        // Small triangle pointing down at the FAB.
-        Padding(
-          padding: const EdgeInsets.only(right: 20),
-          child: Transform.rotate(
-            angle: 0.785398, // 45 degrees
-            child: Container(width: 10, height: 10, color: scheme.primaryContainer),
-          ),
-        ),
-      ],
-    );
+        );
   }
+}
+
+/// A rounded rectangle with a small triangular tail poking out of the
+/// bottom-right corner, pointing down toward whatever this bubble is
+/// anchored to — used instead of layering a separately-rotated square
+/// under the bubble (the previous approach), which didn't get its own
+/// matching shadow/elevation and never quite lined up with the body.
+class _SpeechBubbleShape extends ShapeBorder {
+  const _SpeechBubbleShape({this.tailSize = 10});
+  final double tailSize;
+
+  static const _radius = 20.0;
+
+  @override
+  EdgeInsetsGeometry get dimensions => EdgeInsets.zero;
+
+  @override
+  Path getInnerPath(Rect rect, {TextDirection? textDirection}) => getOuterPath(rect, textDirection: textDirection);
+
+  @override
+  Path getOuterPath(Rect rect, {TextDirection? textDirection}) {
+    final bodyRect = Rect.fromLTRB(rect.left, rect.top, rect.right, rect.bottom - tailSize);
+    final path = Path()..addRRect(RRect.fromRectAndRadius(bodyRect, const Radius.circular(_radius)));
+    final tailPath = Path()
+      ..moveTo(rect.right - _radius - tailSize, bodyRect.bottom)
+      ..lineTo(rect.right - _radius, bodyRect.bottom + tailSize)
+      ..lineTo(rect.right - _radius, bodyRect.bottom)
+      ..close();
+    return Path.combine(PathOperation.union, path, tailPath);
+  }
+
+  @override
+  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {}
+
+  @override
+  ShapeBorder scale(double t) => this;
 }

@@ -19,6 +19,12 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Targeting the same "github-pages" environment as the deploy job
+    # below means this job can also read secrets scoped to that
+    # environment (not just repository-level ones) — in case
+    # GEMINI_API_KEY ends up added there instead of as a plain repo
+    # secret, it's still visible here either way.
+    environment: github-pages
     steps:
       - uses: actions/checkout@v4
 
@@ -29,7 +35,10 @@ jobs:
 
       - run: flutter pub get
 
-      - run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+      - run: >
+          flutter build web --release
+          --base-href "/${{ github.event.repository.name }}/"
+          --dart-define=GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
 
       - uses: actions/configure-pages@v5
         with:

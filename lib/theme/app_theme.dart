@@ -97,12 +97,12 @@ Color resolveJournalThemeColor(String themeName, Brightness brightness) {
 /// journal entry badges and the insights "most frequent" card.
 enum Mood {
   great('Great', '🤩', Color(0xFFF9A8D4), Color(0xFF701A44)),
-  good('Good', '🙂', Color(0xFFBBF7D0), Color(0xFF14532D)),
+  good('Good', '😎', Color(0xFFBBF7D0), Color(0xFF14532D)),
   okay('Okay', '😐', Color(0xFFFED7AA), Color(0xFF7C2D12)),
   sad('Sad', '😢', Color(0xFFBFDBFE), Color(0xFF1E3A8A)),
   // Grey rather than red/pink — a "bad mood" indicator doesn't need to
   // read as an alarm color.
-  awful('Awful', '😫', Color(0xFFE5E7EB), Color(0xFF374151));
+  awful('Awful', '😩', Color(0xFFE5E7EB), Color(0xFF374151));
 
   const Mood(this.label, this.emoji, this.swatch, this.onSwatch);
 

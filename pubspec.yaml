@@ -39,7 +39,8 @@ dependencies:
   google_fonts: ^6.2.1
   # Local persistence for entries/settings.
   shared_preferences: ^2.3.3
-  intl: ^0.19.0
+  # Pinned to match flutter_localizations' own requirement (was ^0.19.0).
+  intl: ^0.20.2
   # Hands text off to the OS share sheet (Messages, Mail, other apps) —
   # sharing an entry from its detail page.
   share_plus: ^10.1.4
@@ -57,6 +58,36 @@ dependencies:
   # fetch()/URL bindings — used on web only, to read a recorded voice
   # note's bytes back out of the blob: URL record's web backend returns.
   web: ^1.1.0
+  # REST calls to the Gemini API for Insights' Weekly Trend AI refine.
+  http: ^1.2.2
+  # Insights' Weekly Trend chart — swapped in for the hand-rolled
+  # CustomPainter version, which had visible smoothing artifacts.
+  fl_chart: ^0.69.2
+  # Accounts + per-user cloud storage, so each person's journal is their
+  # own private data instead of everything living in one browser's local
+  # storage. See firebase_options.dart for the one-time project setup
+  # this still needs before it actually connects to anything.
+  firebase_core: ^3.8.0
+  firebase_auth: ^5.3.3
+  cloud_firestore: ^5.5.0
+  # Settings' "Notifications" toggle — a real daily reminder to journal,
+  # scheduled on-device (Android/iOS only; see notification_service.dart
+  # for why web is a no-op).
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
+  flutter_timezone: ^3.0.1
+  # Privacy & Security's Fingerprint Unlock (device biometric prompt) and
+  # Pattern Lock (hashing the drawn pattern before storing it locally —
+  # see app_lock_service.dart for why neither of these syncs to Firestore
+  # like the rest of AppState does).
+  local_auth: ^2.3.0
+  crypto: ^3.0.6
+  lottie: ^3.5.1
+  url_launcher: ^6.3.2
+  # Settings' Language picker — English + Chinese for now, see
+  # lib/l10n/app_en.arb / app_zh.arb for the actual translated strings.
+  flutter_localizations:
+    sdk: flutter
 
 dev_dependencies:
   flutter_test:
@@ -74,6 +105,10 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+
+  # Generates AppLocalizations from lib/l10n/*.arb (see l10n.yaml) —
+  # Settings' Language picker.
+  generate: true
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

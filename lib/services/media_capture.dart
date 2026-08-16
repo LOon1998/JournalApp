@@ -46,3 +46,19 @@ Future<String?> pickPhotoAsBase64(ImageSource source) async {
   final bytes = await file.readAsBytes();
   return base64Encode(bytes);
 }
+
+/// Same idea as [pickPhotoAsBase64], sized down further (a profile photo
+/// only ever renders as a small circle, and — unlike entry photos — this
+/// one rides along in *every* AppState sync, cloud and local, so it's
+/// worth keeping noticeably smaller).
+Future<String?> pickAvatarAsBase64(ImageSource source) async {
+  final file = await ImagePicker().pickImage(
+    source: source,
+    imageQuality: 70,
+    maxWidth: 400,
+    maxHeight: 400,
+  );
+  if (file == null) return null;
+  final bytes = await file.readAsBytes();
+  return base64Encode(bytes);
+}

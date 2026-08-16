@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
+import '../data/app_state.dart';
+import '../services/gemini_service.dart';
 
-class _ChatMessage {
-  const _ChatMessage(this.text, this.fromAura);
-  final String text;
-  final bool fromAura;
-}
-
-/// Full-screen Aura chat, opened from the floating chat button.
+/// Full-screen Aura chat, opened from the floating chat button. The
+/// transcript itself lives in AppState (see [AppState.auraMessages]), not
+/// local State — so closing and reopening this screen (or reloading the
+/// app entirely) picks back up right where the conversation left off,
+/// instead of resetting to just the opening greeting every time.
 class AuraChatScreen extends StatefulWidget {
   const AuraChatScreen({super.key});
 
@@ -17,19 +17,39 @@ class AuraChatScreen extends StatefulWidget {
 class _AuraChatScreenState extends State<AuraChatScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
-  final List<_ChatMessage> _messages = [
-    const _ChatMessage("Hi there! I'm Aura, your mindful companion. How are you feeling today?", true),
+
+  // A bigger pool than what's actually shown — three of these are picked
+  // at random each time the chat's opened (no AI call for this; it's just
+  // a handful of static conversation starters, not worth spending Gemini
+  // quota on), so the quick replies feel a little different session to
+  // session instead of always being the same fixed three.
+  static const _quickReplyPool = [
+    'I need to vent',
+    'Breathing exercise',
+    'Just chatting',
+    'Help me reflect on today',
+    "I'm feeling anxious",
+    'Celebrate a win with me',
+    "I'm feeling great today",
+    'Give me a journal prompt',
+    'I need some encouragement',
+    'Help me unwind',
+    "I'm feeling stuck",
+    'Something to be grateful for',
   ];
 
-  static const _quickReplies = ['I need to vent', 'Breathing exercise', 'Just chatting'];
+  late final List<String> _quickReplies = (List.of(_quickReplyPool)..shuffle()).take(3).toList();
 
-  static const _auraReplies = [
-    "I hear you. Thank you for sharing that with me.",
-    "That makes a lot of sense. Would it help to write it down in your journal?",
-    "Take a slow breath in… and out. You're doing better than you think.",
-    "I'm proud of you for checking in today. What's one small thing that could help right now?",
-  ];
-  int _replyIndex = 0;
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Jump straight to the most recent message on open, same as any real
+    // chat app — otherwise a long-running conversation would reopen
+    // scrolled to the very top.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(animate: false));
+  }
 
   @override
   void dispose() {
@@ -38,28 +58,58 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
     super.dispose();
   }
 
-  void _send([String? text]) {
-    final message = (text ?? _controller.text).trim();
-    if (message.isEmpty) return;
-    setState(() {
-      _messages.add(_ChatMessage(message, false));
-      _messages.add(_ChatMessage(_auraReplies[_replyIndex % _auraReplies.length], true));
-      _replyIndex++;
-      _controller.clear();
-    });
+  void _scrollToBottom({bool animate = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
+      final target = _scrollController.position.maxScrollExtent;
+      if (animate) {
+        _scrollController.animateTo(target, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+      } else {
+        _scrollController.jumpTo(target);
+      }
     });
+  }
+
+  Future<void> _send([String? text]) async {
+    final message = (text ?? _controller.text).trim();
+    if (message.isEmpty || _sending) return;
+
+    final appState = AppStateScope.of(context);
+    final apiKey = resolveGeminiApiKey(appState.geminiApiKey);
+    // History as it stood *before* this message — sendAuraMessage appends
+    // the new one itself, so the two shouldn't overlap.
+    final history = [for (final m in appState.auraMessages) AuraTurn(text: m.text, fromAura: m.fromAura)];
+
+    appState.addAuraMessage(AuraChatMessage(text: message, fromAura: false));
+    _controller.clear();
+    if (apiKey != null) setState(() => _sending = true);
+    _scrollToBottom();
+
+    if (apiKey == null) {
+      appState.addAuraMessage(const AuraChatMessage(text: 'Not available', fromAura: true));
+      _scrollToBottom();
+      return;
+    }
+
+    try {
+      final reply = await sendAuraMessage(apiKey, history, message);
+      if (!mounted) return;
+      appState.addAuraMessage(AuraChatMessage(text: reply, fromAura: true));
+    } on GeminiException catch (e) {
+      if (!mounted) return;
+      // e.message is already a complete, friendly sentence — no need to
+      // wrap it in another "sorry, I couldn't..." on top of it.
+      appState.addAuraMessage(AuraChatMessage(text: e.message, fromAura: true));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+    _scrollToBottom();
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final messages = AppStateScope.of(context).auraMessages;
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -79,8 +129,11 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
             child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.all(20),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) => _Bubble(message: _messages[index]),
+              itemCount: messages.length + (_sending ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == messages.length) return const _TypingBubble();
+                return _Bubble(message: messages[index]);
+              },
             ),
           ),
           SafeArea(
@@ -97,7 +150,7 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
                       itemCount: _quickReplies.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 8),
                       itemBuilder: (context, index) => OutlinedButton(
-                        onPressed: () => _send(_quickReplies[index]),
+                        onPressed: _sending ? null : () => _send(_quickReplies[index]),
                         style: OutlinedButton.styleFrom(
                           side: BorderSide(color: scheme.outlineVariant),
                           foregroundColor: scheme.onSurfaceVariant,
@@ -121,6 +174,7 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
                         Expanded(
                           child: TextField(
                             controller: _controller,
+                            enabled: !_sending,
                             decoration: const InputDecoration(
                               border: InputBorder.none,
                               filled: false,
@@ -130,7 +184,7 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
                           ),
                         ),
                         IconButton(
-                          onPressed: () => _send(),
+                          onPressed: _sending ? null : () => _send(),
                           icon: Icon(Icons.send, color: scheme.onPrimary),
                           style: IconButton.styleFrom(backgroundColor: scheme.primary),
                         ),
@@ -149,7 +203,7 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
 
 class _Bubble extends StatelessWidget {
   const _Bubble({required this.message});
-  final _ChatMessage message;
+  final AuraChatMessage message;
 
   @override
   Widget build(BuildContext context) {
@@ -181,7 +235,7 @@ class _Bubble extends StatelessWidget {
             mainAxisAlignment: message.fromAura ? MainAxisAlignment.start : MainAxisAlignment.end,
             children: [
               if (message.fromAura) ...[
-                CircleAvatar(radius: 14, backgroundColor: scheme.primaryContainer, child: Icon(Icons.auto_awesome, size: 14, color: scheme.primary)),
+                CircleAvatar(radius: 14, backgroundColor: scheme.primaryContainer, child: Icon(Icons.bubble_chart, size: 14, color: scheme.primary)),
                 const SizedBox(width: 8),
               ],
               ConstrainedBox(
@@ -193,6 +247,45 @@ class _Bubble extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Stand-in "Aura is typing…" bubble shown while waiting on Gemini —
+/// same shape/side as a real Aura bubble so it doesn't jump when the
+/// actual reply replaces it.
+class _TypingBubble extends StatelessWidget {
+  const _TypingBubble();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(radius: 14, backgroundColor: scheme.primaryContainer, child: Icon(Icons.bubble_chart, size: 14, color: scheme.primary)),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: scheme.primaryFixed,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(4),
+                topRight: Radius.circular(20),
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
+            ),
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: scheme.onPrimaryFixed),
+            ),
           ),
         ],
       ),

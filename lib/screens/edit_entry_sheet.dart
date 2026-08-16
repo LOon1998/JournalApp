@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/app_state.dart';
 import '../models/journal_entry.dart';
 import '../theme/app_theme.dart';
+import '../widgets/mood_emoji.dart';
 
 /// Opens a bottom sheet for editing an existing entry's mood, text and
 /// tags. Used from both the Journal timeline and the Calendar day detail,
@@ -174,7 +175,7 @@ class _MoodChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(mood.emoji, style: const TextStyle(fontSize: 18)),
+            MoodEmoji(mood: mood, size: 18),
             const SizedBox(width: 6),
             Text(mood.label,
                 style: TextStyle(

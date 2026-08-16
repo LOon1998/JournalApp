@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../data/app_state.dart';
 import '../models/journal_entry.dart';
+import '../services/gemini_service.dart';
 import '../services/media_capture.dart';
 import '../services/text_measure.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_snackbar.dart';
 import '../widgets/entries_history_row.dart';
 import '../widgets/mini_chip.dart';
+import '../widgets/mood_emoji.dart';
 import '../widgets/photo_tile.dart';
 import '../widgets/theme_swatch.dart';
 import '../widgets/voice_note_player.dart';
@@ -100,6 +102,12 @@ class _JournalScreenState extends State<JournalScreen> {
 
   void _scrollToTop() {
     void attempt() {
+      // Guards against the delayed retry firing after this screen's
+      // State is already gone (navigated away quickly, tab switched,
+      // ...) — _scrollController itself would still exist as a field,
+      // but touching it post-dispose throws its own "used after being
+      // disposed" error, so bail out the same way _scrollTo already does.
+      if (!mounted) return;
       if (_scrollController.hasClients) {
         _scrollController.animateTo(0, duration: const Duration(milliseconds: 400), curve: Curves.easeOut);
       }
@@ -116,6 +124,7 @@ class _JournalScreenState extends State<JournalScreen> {
 
   void _scrollTo(GlobalKey key) {
     void attempt() {
+      if (!mounted) return;
       final targetContext = key.currentContext;
       if (targetContext != null && targetContext.mounted) {
         // alignment: 0 anchors the target to the *top* of the viewport
@@ -144,16 +153,17 @@ class _JournalScreenState extends State<JournalScreen> {
   }
 
   void _goToPage(int page) {
-    // Just switches pages in place — no scrolling/anchoring. The
-    // reflowed content below (Daily Reflection, Journal Reflection, ...)
-    // shifting slightly is expected/fine; jumping the scroll position on
-    // every next/prev tap was the more jarring behavior.
     // Collapses whatever was expanded too — an expanded card left over
     // from the previous page doesn't mean anything on this one.
     setState(() {
       _currentPageIndex = page;
       _expandedEntryId = null;
     });
+    // Anchors back to the top on every next/prev tap — same as the
+    // save-journal flows (_scrollToTop above) — so a new page's entries
+    // are always reached scrolled to their start, rather than landing
+    // wherever the previous page happened to leave the scroll position.
+    _scrollToTop();
   }
 
   void _highlight(String entryId) {
@@ -303,23 +313,23 @@ class _JournalScreenState extends State<JournalScreen> {
     });
   }
 
-  // Background for the content editor and the tag input — themed to match
-  // the selected Writing Theme swatch. In light mode, "White" would
-  // otherwise blend the field straight into the equally-white/near-white
-  // surrounding card, so that case swaps to grey instead; any other color
-  // already gives the card its own tint, so the field itself stays plain
-  // white for contrast against it. Dark mode is left exactly as before —
-  // the low-alpha blend already reads fine there.
+  // Background for the content editor and the tag input — themed to
+  // actually show the selected Writing Theme swatch's color, the same
+  // low-alpha blend used everywhere else a Writing Theme tints a card.
+  // "White" is the one exception: blending it in at low alpha over an
+  // already near-white light-mode surface is invisible, so that specific
+  // case swaps to grey instead. Dark mode needs no such exception —
+  // resolveJournalThemeColor already resolves White to black there,
+  // which blends in as a visible (if subtle) darkening, not nothing.
   Color _composerFillColor(ColorScheme scheme) {
-    if (scheme.brightness == Brightness.dark) {
-      return _themeName == null
-          ? scheme.surfaceContainerLowest
-          : Color.alphaBlend(
-              resolveJournalThemeColor(_themeName!, scheme.brightness).withValues(alpha: 0.35),
-              scheme.surfaceContainerLowest);
+    if (_themeName == null) return scheme.surfaceContainerLowest;
+    if (_themeName == 'White' && scheme.brightness == Brightness.light) {
+      return scheme.surfaceContainerLow;
     }
-    final isWhiteTheme = _themeName == null || _themeName == 'White';
-    return isWhiteTheme ? scheme.surfaceContainerLow : Colors.white;
+    return Color.alphaBlend(
+      resolveJournalThemeColor(_themeName!, scheme.brightness).withValues(alpha: 0.35),
+      scheme.surfaceContainerLowest,
+    );
   }
 
   @override
@@ -480,7 +490,7 @@ class _JournalScreenState extends State<JournalScreen> {
               border: InputBorder.none,
               isDense: true,
               contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              hintText: 'Title your entry...',
+              hintText: 'Title your journal...',
               counterText: '',
             ),
           ),
@@ -520,21 +530,46 @@ class _JournalScreenState extends State<JournalScreen> {
                   onSelected: (mood) => setState(() => _mood = mood),
                   itemBuilder: (context) => [
                     for (final mood in Mood.values)
-                      PopupMenuItem(value: mood, child: Text('${mood.emoji}  ${mood.label}')),
+                      PopupMenuItem(
+                        value: mood,
+                        child: Row(
+                          children: [
+                            // Same mood-swatch color language as the entry
+                            // cards and the mood picker on Today — this
+                            // list read as plain text before, with nothing
+                            // tying each row to its actual color anywhere
+                            // else in the app.
+                            CircleAvatar(
+                              radius: 12,
+                              backgroundColor: mood.swatch,
+                              child: MoodEmoji(mood: mood, size: 12),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(mood.label),
+                          ],
+                        ),
+                      ),
                   ],
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
-                      color: scheme.surface,
+                      // mood.swatch itself is a pale pastel — fine as a
+                      // fill, but as a thin 2px line it barely read as
+                      // colored at all. Using it for the inner background
+                      // instead (a light tint, not full-strength) and the
+                      // much more saturated onSwatch for the actual
+                      // border line is what makes both halves — fill and
+                      // outline — actually look tied to the mood's color.
+                      color: _mood.swatch.withValues(alpha: 0.35),
                       borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: scheme.surfaceContainerHighest),
+                      border: Border.all(color: _mood.onSwatch, width: 2),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('Feeling:', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                        Text('Feeling:', style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
                         const SizedBox(width: 6),
-                        Text(_mood.emoji, style: const TextStyle(fontSize: 18)),
+                        MoodEmoji(mood: _mood, size: 20),
                       ],
                     ),
                   ),
@@ -719,15 +754,75 @@ class _DailyReflectionBar extends StatefulWidget {
 }
 
 class _DailyReflectionBarState extends State<_DailyReflectionBar> {
-  // TODO: rotate daily rather than a single fixed prompt, if/when there's
-  // a bank of these to pick from.
-  static const _prompt = "What's one small thing that made you smile today?";
+  // Preloaded pool used whenever Gemini isn't available — no API key, no
+  // connection, or the quota's been used up. Picked deterministically by
+  // day-of-year (not random) so it still rotates day to day rather than
+  // always landing on the same one, and stays consistent if the app
+  // reloads partway through the same day.
+  static const _fallbackPrompts = [
+    "What's one small thing that made you smile today?",
+    "What's something you're looking forward to?",
+    "Is there a moment today you'd like to remember?",
+    "What's weighing on your mind right now?",
+    "What's one thing you're grateful for today?",
+    "How did you take care of yourself today?",
+    "What would make tomorrow a little better?",
+  ];
 
   bool _expanded = false;
+  bool _autoTriggered = false;
+
+  String _localFallback() {
+    final dayOfYear = int.parse(DateFormat('D').format(DateTime.now()));
+    return _fallbackPrompts[dayOfYear % _fallbackPrompts.length];
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_autoTriggered) return;
+    _autoTriggered = true;
+    final appState = AppStateScope.of(context);
+    // Already generated/picked for today — nothing to do.
+    if (appState.todaysReflectionPrompt != null) return;
+
+    final apiKey = resolveGeminiApiKey(appState.geminiApiKey);
+    if (apiKey == null) {
+      // Deferred — didChangeDependencies runs while this widget (and,
+      // since HomeShell builds every tab at once via IndexedStack, that
+      // means right after every single login) is still in its *first*
+      // build/mount pass. Calling a notifyListeners()-triggering setter
+      // synchronously here throws "setState() or markNeedsBuild() called
+      // during build", because it tries to re-dirty AppStateScope — an
+      // ancestor that already finished building earlier this same frame
+      // — from a descendant that's still mounting. Waiting for the frame
+      // to actually finish first avoids that entirely.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        appState.setTodaysReflectionPrompt(_localFallback());
+      });
+      return;
+    }
+    fetchDailyReflectionPrompt(apiKey).then((prompt) {
+      if (!mounted) return;
+      appState.setTodaysReflectionPrompt(prompt);
+    }).catchError((_) {
+      // Quota hit, network hiccup, whatever — the local pool means this
+      // bar is never just empty or stuck loading.
+      if (!mounted) return;
+      appState.setTodaysReflectionPrompt(_localFallback());
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // Shows a real prompt immediately even before today's has finished
+    // generating/persisting (see didChangeDependencies above) — falls
+    // back to the same deterministic local pick build() would land on
+    // anyway, so there's no flash of empty content while Gemini's call
+    // is still in flight.
+    final prompt = AppStateScope.of(context).todaysReflectionPrompt ?? _localFallback();
     return InkWell(
       borderRadius: BorderRadius.circular(24),
       onTap: () => setState(() => _expanded = !_expanded),
@@ -751,7 +846,7 @@ class _DailyReflectionBarState extends State<_DailyReflectionBar> {
                       style: TextStyle(
                           color: scheme.secondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1)),
                   const SizedBox(height: 2),
-                  Text('"$_prompt"',
+                  Text('"$prompt"',
                       maxLines: _expanded ? null : 1,
                       overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
                       style: TextStyle(

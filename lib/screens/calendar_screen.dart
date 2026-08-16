@@ -39,6 +39,28 @@ class _CalendarScreenState extends State<CalendarScreen> {
   // reset to collapsed after returning from viewing/editing any entry.
   String? _expandedEntryId;
 
+  // Marks the selected-day heading ("August 16" + entry count) — used to
+  // anchor the scroll position back there on every pagination tap, same
+  // behavior as Journal's own entries pager (see JournalScreen._goToPage).
+  final _selectedDayKey = GlobalKey();
+
+  void _goToEntriesPage(int page) {
+    setState(() {
+      _currentPageIndex = page;
+      _expandedEntryId = null;
+    });
+    void attempt() {
+      if (!mounted) return;
+      final targetContext = _selectedDayKey.currentContext;
+      if (targetContext != null && targetContext.mounted) {
+        Scrollable.ensureVisible(targetContext,
+            duration: const Duration(milliseconds: 400), curve: Curves.easeOut, alignment: 0);
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => attempt());
+  }
+
   @override
   void initState() {
     super.initState();
@@ -139,6 +161,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         ),
         const SizedBox(height: 24),
         Row(
+          key: _selectedDayKey,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(DateFormat.MMMMd().format(_selectedDay),
@@ -192,12 +215,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           maintainAnimation: true,
                           maintainState: true,
                           child: IconButton(
-                            onPressed: page > 0
-                                ? () => setState(() {
-                                      _currentPageIndex = page - 1;
-                                      _expandedEntryId = null;
-                                    })
-                                : null,
+                            onPressed: page > 0 ? () => _goToEntriesPage(page - 1) : null,
                             icon: const Icon(Icons.chevron_left),
                             visualDensity: VisualDensity.compact,
                             tooltip: 'Previous page',
@@ -221,12 +239,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           maintainAnimation: true,
                           maintainState: true,
                           child: IconButton(
-                            onPressed: page < pageCount - 1
-                                ? () => setState(() {
-                                      _currentPageIndex = page + 1;
-                                      _expandedEntryId = null;
-                                    })
-                                : null,
+                            onPressed: page < pageCount - 1 ? () => _goToEntriesPage(page + 1) : null,
                             icon: const Icon(Icons.chevron_right),
                             visualDensity: VisualDensity.compact,
                             tooltip: 'Next page',
@@ -289,11 +302,11 @@ class _DayCell extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          // Plain light grey instead of the tertiary (green) container —
-          // the green read as too high-contrast for what's just a
-          // selection highlight, not something that needs to stand out
-          // like a mood color.
-          color: selected ? scheme.surfaceContainerHighest : Colors.transparent,
+          // Back to a filled circle, but a much lighter tint than the
+          // original tertiaryContainer — light enough to no longer read
+          // as the same grey as the "Awful" mood dot, while still being
+          // an obvious soft highlight rather than a ring.
+          color: selected ? scheme.tertiaryContainer.withValues(alpha: 0.35) : null,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

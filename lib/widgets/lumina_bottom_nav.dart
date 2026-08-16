@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/generated/app_localizations.dart';
 
 class LuminaBottomNav extends StatelessWidget {
   const LuminaBottomNav({super.key, required this.currentIndex, required this.onTap});
@@ -6,16 +7,16 @@ class LuminaBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  static const _items = [
-    (icon: Icons.bar_chart, label: 'Insights'),
-    (icon: Icons.sentiment_satisfied, label: 'Today'),
-    (icon: Icons.menu_book, label: 'Journal'),
-    (icon: Icons.calendar_month, label: 'Calendar'),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final items = [
+      (icon: Icons.bar_chart, label: l10n.navInsights),
+      (icon: Icons.sentiment_satisfied, label: l10n.navToday),
+      (icon: Icons.menu_book, label: l10n.navJournal),
+      (icon: Icons.calendar_month, label: l10n.navCalendar),
+    ];
     return DecoratedBox(
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLowest,
@@ -31,10 +32,10 @@ class LuminaBottomNav extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              for (var i = 0; i < _items.length; i++)
+              for (var i = 0; i < items.length; i++)
                 _NavItem(
-                  icon: _items[i].icon,
-                  label: _items[i].label,
+                  icon: items[i].icon,
+                  label: items[i].label,
                   selected: currentIndex == i,
                   onTap: () => onTap(i),
                 ),
