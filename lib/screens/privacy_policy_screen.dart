@@ -6,7 +6,7 @@ import '../app_info.dart';
 /// actually changes — same reasoning as About's _appVersion.
 const _lastUpdated = 'August 16, 2026';
 
-/// Reached from About Lumina's "Privacy Policy" link. Plain, readable
+/// Reached from About Moodlet's "Privacy Policy" link. Plain, readable
 /// legal-document styling (headings + paragraphs) rather than the
 /// FloatingCard treatment used elsewhere — this is the one screen in the
 /// app where a dense wall of standard legal text is actually the right
@@ -27,8 +27,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
             const SizedBox(height: 16),
             const _Section(
               title: 'Overview',
-              body: 'Lumina ("we", "our", "the app") is a personal journaling app. This policy explains what '
-                  'information the app collects, how it is used, and the choices you have. Using Lumina means '
+              body: 'Moodlet ("we", "our", "the app") is a personal journaling app. This policy explains what '
+                  'information the app collects, how it is used, and the choices you have. Using Moodlet means '
                   'you agree to the practices described here.',
             ),
             // Matches auth_service.dart (email/password sign-up) and
@@ -42,7 +42,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   'photos or voice notes you attach to an entry.\n'
                   '• Optional AI key: if you choose to connect a Google Gemini API key in Settings for AI-powered '
                   'features, that key is stored so the app can use it — see "Optional AI Features" below.\n\n'
-                  'We do not collect analytics, advertising identifiers, or location data, and Lumina contains '
+                  'We do not collect analytics, advertising identifiers, or location data, and Moodlet contains '
                   'no ads or third-party trackers.',
             ),
             // Matches cloud_sync_service.dart / app_state.dart — one
@@ -70,7 +70,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
             // returns null (and every AI code path is skipped) otherwise.
             const _Section(
               title: 'Optional AI Features',
-              body: 'Lumina can use the Google Gemini API to suggest reflection prompts, refine your weekly mood '
+              body: 'Moodlet can use the Google Gemini API to suggest reflection prompts, refine your weekly mood '
                   "trend, or generate a title from an entry — but only if you provide your own Gemini API key in "
                   'Settings. If you do, the relevant entry text is sent directly to Google\'s Gemini API to '
                   'generate that response, subject to Google\'s own privacy terms. If no key is set, none of '
@@ -80,8 +80,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
             // deliberately never part of the Firestore-synced AppState.
             const _Section(
               title: 'On-Device Security Features',
-              body: 'Fingerprint Unlock and Pattern Lock (Settings → Privacy & Security) are stored only on your '
-                  "device and are never synced to our servers or visible to us — a drawn pattern is stored only "
+              body: 'Pattern Lock (Settings → Privacy & Security) is stored only on your '
+                  "device and is never synced to our servers or visible to us — a drawn pattern is stored only "
                   'as an irreversible hash, never in a form that could be read back.',
             ),
             // Matches auth_service.dart's deleteAccount — deletes the
@@ -96,14 +96,14 @@ class PrivacyPolicyScreen extends StatelessWidget {
             ),
             const _Section(
               title: "Children's Privacy",
-              body: 'Lumina is not directed at children under 13, and we do not knowingly collect information '
+              body: 'Moodlet is not directed at children under 13, and we do not knowingly collect information '
                   'from anyone under that age. If you believe a child has provided us with personal information, '
                   'please contact us using the details below and we will delete it.',
             ),
             const _Section(
               title: 'Changes to This Policy',
               body: 'If this policy changes, the "Last updated" date at the top of this page will change too. '
-                  'Continuing to use Lumina after an update means you accept the revised policy.',
+                  'Continuing to use Moodlet after an update means you accept the revised policy.',
             ),
             _Section(
               title: 'Contact Us',

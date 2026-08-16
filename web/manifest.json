@@ -1,11 +1,11 @@
 {
-    "name": "Lumina",
-    "short_name": "Lumina",
+    "name": "Moodlet",
+    "short_name": "Moodlet",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#F7F9FC",
+    "background_color": "#F2EEE3",
     "theme_color": "#366758",
-    "description": "Lumina — your digital hug. Mood check-ins, journaling, and an AI companion.",
+    "description": "Moodlet — your digital hug. Mood check-ins, journaling, and an AI companion.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

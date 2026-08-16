@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,10 +11,18 @@ import '../theme/app_theme.dart';
 import '../widgets/app_snackbar.dart';
 import '../widgets/floating_card.dart';
 import '../widgets/mood_emoji.dart';
+import 'settings_screen.dart';
 import 'weekly_detail_screen.dart';
 
 class InsightsScreen extends StatelessWidget {
-  const InsightsScreen({super.key});
+  const InsightsScreen({super.key, this.active = true});
+
+  /// Whether this is the currently-showing tab — HomeShell keeps every
+  /// tab alive permanently via IndexedStack (never disposing/recreating
+  /// this screen when you switch away and back), so without this there'd
+  /// be no signal telling _WeeklyTrendCard it's worth re-playing its
+  /// entrance animation on a return visit; see its own active handling.
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +65,8 @@ class InsightsScreen extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
       children: [
+        const _WelcomeBackCard(),
+        const SizedBox(height: 16),
         const _QuickCheckInCard(),
         Text('Your Mood Journey',
             textAlign: TextAlign.center,
@@ -66,7 +78,7 @@ class InsightsScreen extends StatelessWidget {
           style: TextStyle(color: scheme.onSurfaceVariant),
         ),
         const SizedBox(height: 24),
-        _WeeklyTrendCard(entries: entries),
+        _WeeklyTrendCard(entries: entries, active: active),
         const SizedBox(height: 20),
         LayoutBuilder(
           builder: (context, constraints) {
@@ -87,8 +99,8 @@ class InsightsScreen extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     child: topMood != null
-                        ? MoodEmoji(mood: topMood!, size: 44)
-                        : const Text('✨', style: TextStyle(fontSize: 44)),
+                        ? MoodEmoji(mood: topMood!, size: 60)
+                        : const Text('✨', style: TextStyle(fontSize: 60)),
                   ),
                   const SizedBox(height: 12),
                   Text(topMood?.label ?? 'None yet',
@@ -138,6 +150,76 @@ class InsightsScreen extends StatelessWidget {
 /// AppState.addQuickEntry). HomeShell reacts to either signal regardless
 /// of which screen triggered it, so no extra wiring is needed here to
 /// make the tab switch happen.
+/// "Welcome back / [name]" strip — the signed-in user's photo/name (the
+/// whole row, minus the bell, opens Settings, same as the avatar/name
+/// used to when they lived in LuminaTopBar instead) and a bell icon that
+/// directly toggles Settings' own Notifications switch — filled when on,
+/// outlined when off, same on/off visual language as the top bar's own
+/// Aura toggle — rather than just linking into Settings for it.
+class _WelcomeBackCard extends StatelessWidget {
+  const _WelcomeBackCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final appState = AppStateScope.of(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(24),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const SettingsScreen()),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(color: scheme.surfaceContainerLowest, borderRadius: BorderRadius.circular(24)),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: scheme.primary, width: 2)),
+              child: CircleAvatar(
+                radius: 28,
+                backgroundColor: scheme.primaryContainer,
+                backgroundImage: appState.profilePhotoBase64 != null
+                    ? MemoryImage(base64Decode(appState.profilePhotoBase64!))
+                    : null,
+                child: appState.profilePhotoBase64 == null
+                    ? Icon(Icons.self_improvement, size: 28, color: scheme.onPrimaryContainer)
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Welcome back', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                  Text(appState.userName,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: scheme.onSurface)),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: () {
+                appState.setNotificationsEnabled(!appState.notificationsEnabled);
+                showAppSnackBar(
+                  context,
+                  appState.notificationsEnabled ? 'Daily reminder turned on' : 'Daily reminder turned off',
+                );
+              },
+              icon: Icon(
+                appState.notificationsEnabled ? Icons.notifications : Icons.notifications_none,
+                color: appState.notificationsEnabled ? scheme.primary : scheme.onSurfaceVariant,
+              ),
+              tooltip: appState.notificationsEnabled ? 'Turn off daily reminder' : 'Turn on daily reminder',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _QuickCheckInCard extends StatefulWidget {
   const _QuickCheckInCard();
 
@@ -163,17 +245,57 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 24),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(32)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        clipBehavior: Clip.antiAlias,
+        // Darker, fixed teal — not scheme.primaryContainer (a pale
+        // pastel) — so this hero card reads as the deliberately bolder
+        // accent it's meant to be, with enough contrast for the
+        // decorative circle below to actually show up against it.
+        decoration: const BoxDecoration(color: Color(0xFF2C5C4E), borderRadius: BorderRadius.all(Radius.circular(32))),
+        child: Stack(
           children: [
-            Text('$greeting, ${appState.userName}',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: scheme.onPrimaryContainer)),
-            const SizedBox(height: 4),
-            Text('Ready to capture a moment?',
-                style: TextStyle(color: scheme.onPrimaryContainer.withValues(alpha: 0.8))),
-            const SizedBox(height: 16),
+            // Decorative circle-with-icon accent, echoing the "Daily
+            // Reflection" mockup card's own corner graphic — purely
+            // decorative, not tappable/functional. Centered in the
+            // card's right half (not corner-clipped), with the real
+            // logo mark inside it rather than a generic icon.
+            Positioned(
+              top: 20,
+              right: 24,
+              bottom: 20,
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: Container(
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.14)),
+                  alignment: Alignment.center,
+                  child: FractionallySizedBox(
+                    widthFactor: 0.4,
+                    heightFactor: 0.4,
+                    child: Image.asset('assets/branding/logoIcon.png', fit: BoxFit.contain),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Width-capped so the text wraps clear of the circle
+                  // on the right instead of running underneath it.
+                  FractionallySizedBox(
+                    widthFactor: 0.58,
+                    alignment: Alignment.centerLeft,
+                    child: Text('$greeting, ${appState.userName}',
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white)),
+                  ),
+                  const SizedBox(height: 4),
+                  FractionallySizedBox(
+                    widthFactor: 0.58,
+                    alignment: Alignment.centerLeft,
+                    child: Text('Track your mood to see patterns and get insights.',
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.8))),
+                  ),
+                  const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: scheme.surfaceContainerLowest, borderRadius: BorderRadius.circular(20)),
@@ -226,7 +348,7 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('Continue & Write Journal', style: TextStyle(fontWeight: FontWeight.w700)),
+                            Text('Check in now', style: TextStyle(fontWeight: FontWeight.w700)),
                             SizedBox(width: 8),
                             Icon(Icons.arrow_forward, size: 18),
                           ],
@@ -263,7 +385,10 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
             ),
           ],
         ),
-      ),
+              ),
+            ],
+          ),
+        ),
     );
   }
 }
@@ -414,7 +539,7 @@ class _CorrelationTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          CircleAvatar(radius: 22, backgroundColor: mood.swatch, child: MoodEmoji(mood: mood, size: 20)),
+          CircleAvatar(radius: 26, backgroundColor: mood.swatch, child: MoodEmoji(mood: mood, size: 28)),
           const SizedBox(width: 16),
           Expanded(
             child: RichText(
@@ -451,8 +576,11 @@ class _CorrelationTile extends StatelessWidget {
 /// rather than the chart's only way of working, so a bad/missing key or a
 /// failed request never leaves this card broken.
 class _WeeklyTrendCard extends StatefulWidget {
-  const _WeeklyTrendCard({required this.entries});
+  const _WeeklyTrendCard({required this.entries, required this.active});
   final List<JournalEntry> entries;
+
+  /// See InsightsScreen.active's doc comment.
+  final bool active;
 
   @override
   State<_WeeklyTrendCard> createState() => _WeeklyTrendCardState();
@@ -492,12 +620,19 @@ Color moodColorForScore(double score) {
   return scoreToMood[rounded]!.swatch;
 }
 
-class _WeeklyTrendCardState extends State<_WeeklyTrendCard> with SingleTickerProviderStateMixin {
+class _WeeklyTrendCardState extends State<_WeeklyTrendCard> with TickerProviderStateMixin {
   // Slow, continuous ease-in-out pulse — just enough to read as "live"
   // (the fill glowing gently, the latest dot pulsing) rather than a
   // distracting animation.
   late final _breatheController =
       AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat(reverse: true);
+
+  // One-shot 0->1 count-up, same as Weekly Detail's own copy of this
+  // chart — the line rises from the chart's floor up to each day's real
+  // value once, when this card first appears, instead of already being
+  // fully drawn.
+  late final _countUpController =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..forward();
 
   // Computed fresh on every build (not cached in a field) — this card's
   // State lives for as long as the Insights tab does, which thanks to
@@ -543,7 +678,24 @@ class _WeeklyTrendCardState extends State<_WeeklyTrendCard> with SingleTickerPro
   @override
   void dispose() {
     _breatheController.dispose();
+    _countUpController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(_WeeklyTrendCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Replays the entrance animation every time you switch back to the
+    // Insights tab, not just the first time this card is ever built —
+    // IndexedStack keeps this State alive permanently instead of
+    // recreating it on every visit, so re-triggering it here (on the
+    // false->true transition, not e.g. every rebuild while already
+    // active) is the only way to get a "replay on return" effect at all.
+    if (!oldWidget.active && widget.active) {
+      _countUpController
+        ..reset()
+        ..forward();
+    }
   }
 
   void _openWeeklyDetail(BuildContext context) => Navigator.of(context).push(
@@ -612,7 +764,21 @@ class _WeeklyTrendCardState extends State<_WeeklyTrendCard> with SingleTickerPro
             child: values.every((v) => v == null)
                 ? Center(child: Text('No data yet', style: TextStyle(color: scheme.outlineVariant)))
                 : IgnorePointer(
-                    child: TrendChart(values: values, last7Days: last7Days, scheme: scheme, breathe: _breatheController),
+                    child: AnimatedBuilder(
+                      animation: _countUpController,
+                      builder: (context, _) {
+                        final t = Curves.easeOutCubic.transform(_countUpController.value);
+                        final animatedValues = [
+                          for (final v in values) v == null ? null : 1 + (v - 1) * t,
+                        ];
+                        return TrendChart(
+                          values: animatedValues,
+                          last7Days: last7Days,
+                          scheme: scheme,
+                          breathe: _breatheController,
+                        );
+                      },
+                    ),
                   ),
           ),
           const SizedBox(height: 8),

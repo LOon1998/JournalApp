@@ -1,8 +1,6 @@
-import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show MaxLengthEnforcement;
@@ -13,7 +11,6 @@ import '../models/journal_entry.dart';
 import '../services/media_capture.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_snackbar.dart';
-import '../widgets/entry_share_card.dart';
 import '../widgets/mood_emoji.dart';
 import '../widgets/photo_tile.dart';
 import '../widgets/theme_swatch.dart';
@@ -54,6 +51,12 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
   // applies to the total here instead — same reasoning (an unbounded
   // tag list pushes the screen into an ever-longer scroll).
   static const _maxTags = 8;
+
+  // Wraps the body ListView (see build()) so _captureScreenshot can grab
+  // exactly what's on screen for Share — see _shareEntry's doc comment
+  // for why this alone is what keeps the back button/⋮ menu/edit FAB out
+  // of the picture.
+  final _shareBoundaryKey = GlobalKey();
 
   bool _editingText = false;
   final _textController = TextEditingController();
@@ -200,7 +203,8 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
 
   Future<void> _recordVoiceNote(BuildContext context, AppState appState, JournalEntry entry) async {
     final voiceNote = await showVoiceRecorderSheet(context);
-    if (voiceNote != null) appState.setVoiceNote(entry.id, voiceNote);
+    if (voiceNote == null || !context.mounted) return;
+    appState.setVoiceNote(entry.id, voiceNote);
   }
 
   Future<void> _pickMood(BuildContext context, AppState appState, JournalEntry entry) async {
@@ -232,30 +236,28 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
     return '$label, ${DateFormat('h:mm a').format(dt)}';
   }
 
-  /// Shares a rendered image of the entry (see EntryShareCard) — with
-  /// any voice note attached alongside it as a separate playable audio
-  /// file, since audio can't go *inside* a static image. Falls back to
-  /// the old plain-text share if image/file sharing isn't actually
+  /// Shares a literal screenshot of exactly what's on screen right now —
+  /// the mood, title, tags, written text, and photos, in the same layout
+  /// you're actually looking at. The back button, the ⋮ menu, and the
+  /// edit FAB never appear in it, not because anything filters them out,
+  /// but because [_shareBoundaryKey] is attached to `body` alone — those
+  /// three all live in Scaffold's separate appBar/floatingActionButton
+  /// slots, outside `body` entirely, so they were never part of what
+  /// this captures in the first place. No voice note is attached here —
+  /// audio can't go *inside* a static image, and unlike the entry's own
+  /// on-screen player, a plain picture has no way to represent "there's
+  /// audio here" that's actually useful to whoever receives it. Falls
+  /// back to a plain-text share if image sharing isn't actually
   /// supported here (some desktop browsers don't implement the Web Share
   /// API's file-sharing extension) — better than the Share button
   /// silently doing nothing.
   Future<void> _shareEntry(JournalEntry entry) async {
     try {
-      final pngBytes = await _captureShareCard(entry);
+      final pngBytes = await _captureScreenshot();
       if (!mounted) return;
-      final files = [XFile.fromData(pngBytes, name: 'lumina-entry.png', mimeType: 'image/png')];
-      final voiceNote = entry.voiceNote;
-      if (voiceNote != null) {
-        // Matches VoiceRecorderSheet's own encoder choice exactly (opus/
-        // .webm on web, AAC/.m4a everywhere else) — sharing the wrong
-        // mimeType for the actual bytes could leave the recipient's app
-        // unable to play it back at all.
-        final ext = kIsWeb ? 'webm' : 'm4a';
-        final mimeType = kIsWeb ? 'audio/webm' : 'audio/mp4';
-        files.add(XFile.fromData(base64Decode(voiceNote), name: 'lumina-voice-note.$ext', mimeType: mimeType));
-      }
+      final file = XFile.fromData(pngBytes, name: 'lumina-entry.png', mimeType: 'image/png');
       final caption = entry.text.isEmpty ? entry.title : '${entry.title}\n\n${entry.text}';
-      await Share.shareXFiles(files, text: caption, subject: entry.title);
+      await Share.shareXFiles([file], text: caption, subject: entry.title);
     } catch (_) {
       if (!mounted) return;
       _shareEntryAsText(entry);
@@ -269,40 +271,15 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
     Share.share(buffer.toString(), subject: entry.title);
   }
 
-  /// Renders [EntryShareCard] off-screen (via a Positioned way outside the
-  /// visible area, inside this screen's own Overlay) and captures it as a
-  /// PNG — RepaintBoundary.toImage() captures its own layer content
-  /// directly, unaffected by the ancestor Stack clipping anything actually
-  /// visible on screen, so this works regardless of being positioned off
-  /// the edge of the viewport.
-  Future<Uint8List> _captureShareCard(JournalEntry entry) async {
-    final repaintKey = GlobalKey();
-    final overlay = Overlay.of(context);
-    final overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        left: -10000,
-        top: 0,
-        child: Material(
-          type: MaterialType.transparency,
-          child: RepaintBoundary(key: repaintKey, child: EntryShareCard(entry: entry)),
-        ),
-      ),
-    );
-    overlay.insert(overlayEntry);
-    try {
-      // Two frames — the first lays out/paints, the second guarantees any
-      // photo thumbnails (Image.memory, decoded async under the hood)
-      // have actually finished rasterizing before capture; one frame
-      // occasionally caught them still blank.
-      await WidgetsBinding.instance.endOfFrame;
-      await WidgetsBinding.instance.endOfFrame;
-      final boundary = repaintKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      final image = await boundary.toImage(pixelRatio: 3.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      return byteData!.buffer.asUint8List();
-    } finally {
-      overlayEntry.remove();
-    }
+  Future<Uint8List> _captureScreenshot() async {
+    // The body is already on screen and already painted by the time
+    // Share can be tapped, but one frame's worth of headroom keeps this
+    // safe even if a photo thumbnail's async decode was still catching up.
+    await WidgetsBinding.instance.endOfFrame;
+    final boundary = _shareBoundaryKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+    final image = await boundary.toImage(pixelRatio: 3.0);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
   }
 
   // Same daily-cap check as the Deleted Entries list's own Restore
@@ -399,8 +376,10 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
           );
         }
 
+        final screenBackground = Color.alphaBlend(entry.mood.swatch.withValues(alpha: 0.15), scheme.surface);
+
         return Scaffold(
-          backgroundColor: Color.alphaBlend(entry.mood.swatch.withValues(alpha: 0.15), scheme.surface),
+          backgroundColor: screenBackground,
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             leading: BackButton(color: scheme.onSurface),
@@ -425,9 +404,19 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                 ),
             ],
           ),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-            children: [
+          // RepaintBoundary wraps a plain Container (not the ListView
+          // directly) so the captured screenshot carries the same
+          // mood-tinted background the Scaffold itself paints behind it —
+          // a ListView doesn't paint any background of its own, so
+          // without this the shared PNG would come out with a transparent
+          // background instead of matching what's actually on screen.
+          body: RepaintBoundary(
+            key: _shareBoundaryKey,
+            child: Container(
+              color: screenBackground,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+                children: [
               Center(
                 child: InkWell(
                   // Only tappable in edit mode, same gating as the title,
@@ -443,7 +432,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        MoodEmoji(mood: entry.mood, size: 18),
+                        MoodEmoji(mood: entry.mood, size: 26),
                         const SizedBox(width: 8),
                         // The mood's own label, not entry.title — title is
                         // now an independently editable headline (below)
@@ -799,7 +788,9 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                   ],
                 ),
               ],
-            ],
+                ],
+              ),
+            ),
           ),
           // No edit FAB at all for a deleted entry — it's view-only until
           // restored.
@@ -930,8 +921,12 @@ class _AddTagButtonState extends State<_AddTagButton> {
         child: Container(
           width: 32,
           height: 32,
-          decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: scheme.outlineVariant)),
-          child: Icon(Icons.add, size: 16, color: scheme.outlineVariant),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerLowest,
+            shape: BoxShape.circle,
+            border: Border.all(color: scheme.primary),
+          ),
+          child: Icon(Icons.add, size: 16, color: scheme.primary),
         ),
       );
     }

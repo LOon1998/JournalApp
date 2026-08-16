@@ -65,7 +65,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Remove Pattern Lock?'),
-        content: const Text("You'll no longer need a pattern to open Lumina."),
+        content: const Text("You'll no longer need a pattern to open Moodlet."),
         actions: [
           TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
           TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Remove')),

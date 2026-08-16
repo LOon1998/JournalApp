@@ -15,7 +15,7 @@ class HelpSupportScreen extends StatelessWidget {
   const HelpSupportScreen({super.key});
 
   Future<void> _emailSupport(BuildContext context) async {
-    final uri = Uri(scheme: 'mailto', path: supportEmail, queryParameters: {'subject': 'Lumina Support'});
+    final uri = Uri(scheme: 'mailto', path: supportEmail, queryParameters: {'subject': 'Moodlet Support'});
     final launched = await launchUrl(uri);
     if (!launched && context.mounted) {
       showAppSnackBar(context, "Couldn't open your email app — you can reach us at $supportEmail");
@@ -62,13 +62,13 @@ class HelpSupportScreen extends StatelessWidget {
               question: 'Is my data secured?',
               answer: 'Yes — your account and journal are protected by Firebase Authentication and Cloud '
                   'Firestore, with access rules that restrict your data to your own signed-in account only. '
-                  'See the Privacy Policy (About Lumina) for the full details.',
+                  'See the Privacy Policy (About Moodlet) for the full details.',
             ),
             const _FaqTile(
-              question: 'Can I use Lumina on multiple devices?',
+              question: 'Can I use Moodlet on multiple devices?',
               answer: 'Yes — sign in with the same account on any device and your journal, mood history, and '
-                  "settings will all be right there. Fingerprint Unlock and Pattern Lock are the only "
-                  "exceptions — those are set per-device, so you'll set them up again on a new one.",
+                  "settings will all be right there. Pattern Lock is the only "
+                  "exception — it's set per-device, so you'll set it up again on a new one.",
             ),
             const SizedBox(height: 28),
             FloatingCard(

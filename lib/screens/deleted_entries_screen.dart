@@ -167,7 +167,7 @@ class _EmptyState extends StatelessWidget {
             Container(
               width: 96,
               height: 96,
-              decoration: BoxDecoration(color: scheme.surfaceContainer, shape: BoxShape.circle),
+              decoration: BoxDecoration(color: scheme.surfaceContainerLowest, shape: BoxShape.circle),
               alignment: Alignment.center,
               child: Icon(Icons.delete_sweep, size: 48, color: scheme.outlineVariant),
             ),

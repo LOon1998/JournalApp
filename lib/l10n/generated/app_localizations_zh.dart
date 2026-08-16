@@ -150,7 +150,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsHelpSupport => '帮助与支持';
 
   @override
-  String get settingsAboutLumina => '关于 Lumina';
+  String get settingsAboutLumina => '关于 Moodlet';
 
   @override
   String get settingsLogOut => '退出登录';

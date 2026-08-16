@@ -47,9 +47,9 @@ class _AppLockScreenState extends State<AppLockScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.self_improvement, size: 48, color: scheme.primary),
+              Image.asset('assets/branding/logoIcon.png', width: 56, height: 56),
               const SizedBox(height: 12),
-              Text('Lumina', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
+              Text('Moodlet', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(height: 32),
               Text(
                 _error ?? 'Draw your pattern to unlock',

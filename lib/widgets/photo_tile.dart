@@ -97,7 +97,7 @@ class AddPhotoTile extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: scheme.outlineVariant, width: 1.5),
+          border: Border.all(color: scheme.primary, width: 1.5),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

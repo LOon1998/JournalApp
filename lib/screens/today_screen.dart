@@ -127,7 +127,34 @@ class _TodayScreenState extends State<TodayScreen> {
     // normally (via the outer SingleChildScrollView) on shorter screens,
     // or with the custom-activity field open, where the content can
     // actually exceed the viewport.
-    return LayoutBuilder(
+    //
+    // The gradient behind everything else is Today's own background, not
+    // a app-wide one — HomeShell stacks every tab inside one shared
+    // Scaffold/IndexedStack, so this Container (not Scaffold.background)
+    // is what actually scopes it to just this tab. Fixed colors on
+    // purpose (not the theme's own tokens), matching the source artwork's
+    // teal→gold hues rather than an auto-adapted theme-derived
+    // approximation — softened to lighter, less saturated versions of
+    // those hues (the artwork's own fully-saturated teal/gold read as too
+    // high-contrast/vivid behind this screen's text and cards). Dropped
+    // entirely in dark mode (a plain scheme.surface instead) rather than
+    // trying to tune a dark version of the same gradient — every attempt
+    // at that still fought with the buttons/cards sitting on top of it.
+    final isDark = scheme.brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        color: isDark ? scheme.surface : null,
+        gradient: isDark
+            ? null
+            : const LinearGradient(
+                begin: Alignment.bottomLeft,
+                end: Alignment.topRight,
+                colors: [Color(0xFF9FD6D1), Color(0xFFF6D28C)],
+              ),
+      ),
+      child: LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
         child: ConstrainedBox(
@@ -311,6 +338,12 @@ class _TodayScreenState extends State<TodayScreen> {
                           width: double.infinity,
                           child: FilledButton(
                             style: FilledButton.styleFrom(
+                              // Back to scheme.primary/onPrimary — dark
+                              // mode no longer puts this on the gradient
+                              // at all (see the Container above), just a
+                              // plain scheme.surface, which the theme's
+                              // own primary already contrasts against
+                              // fine on its own.
                               backgroundColor: scheme.primary,
                               foregroundColor: scheme.onPrimary,
                               shape: const StadiumBorder(),
@@ -363,6 +396,7 @@ class _TodayScreenState extends State<TodayScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

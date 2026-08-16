@@ -56,7 +56,7 @@ class LuminaApp extends StatelessWidget {
           // yet pre-sign-in — falls back to whatever locale the device
           // itself is set to, same as leaving `locale:` unset always does.
           return MaterialApp(
-            title: 'Lumina',
+            title: 'Moodlet',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
@@ -182,7 +182,7 @@ class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver 
     return AppStateScope(
       notifier: _appState,
       child: MaterialApp(
-        title: 'Lumina',
+        title: 'Moodlet',
         debugShowCheckedModeBanner: false,
         // Static fallback for the single frame before MaterialApp.builder
         // below first runs; that builder immediately overrides it via a
@@ -245,11 +245,25 @@ class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver 
 }
 
 /// Shown while [AppState.ready] is still pending — see the FutureBuilder
-/// above. Matches the app's own tone/branding (same icon AuthScreen uses)
-/// rather than a bare spinner, since this is the very first thing anyone
-/// sees after signing in.
-class _LoadingScreen extends StatelessWidget {
+/// above. The real Moodlet logo mark (assets/branding/logoIcon.png) with
+/// a slow breathing pulse, rather than a static placeholder icon, since
+/// this is the very first thing anyone sees after signing in.
+class _LoadingScreen extends StatefulWidget {
   const _LoadingScreen();
+
+  @override
+  State<_LoadingScreen> createState() => _LoadingScreenState();
+}
+
+class _LoadingScreenState extends State<_LoadingScreen> with SingleTickerProviderStateMixin {
+  late final _pulseController =
+      AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -259,9 +273,12 @@ class _LoadingScreen extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.self_improvement, size: 48, color: scheme.primary),
-            const SizedBox(height: 20),
-            CircularProgressIndicator(color: scheme.primary),
+            ScaleTransition(
+              scale: Tween(begin: 0.92, end: 1.05).animate(
+                CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+              ),
+              child: Image.asset('assets/branding/logoIcon.png', width: 120, height: 120),
+            ),
             const SizedBox(height: 20),
             Text('Preparing your journal...',
                 style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 15)),

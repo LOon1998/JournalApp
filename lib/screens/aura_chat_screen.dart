@@ -70,26 +70,43 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
     });
   }
 
+  Future<void> _confirmClear(BuildContext context, AppState appState) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear chat?'),
+        content: const Text("This conversation with Aura will be cleared. This can't be undone."),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Clear', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) appState.clearAuraMessages();
+  }
+
   Future<void> _send([String? text]) async {
     final message = (text ?? _controller.text).trim();
-    if (message.isEmpty || _sending) return;
-
     final appState = AppStateScope.of(context);
     final apiKey = resolveGeminiApiKey(appState.geminiApiKey);
+    // Belt-and-suspenders: the input field and send button are already
+    // disabled whenever there's no key (see build() below), so this
+    // shouldn't be reachable that way — but guarding it here too means
+    // there's no path (a stray quick-reply tap, a future caller) that can
+    // still queue up a message that's just going to silently go nowhere.
+    if (message.isEmpty || _sending || apiKey == null) return;
+
     // History as it stood *before* this message — sendAuraMessage appends
     // the new one itself, so the two shouldn't overlap.
     final history = [for (final m in appState.auraMessages) AuraTurn(text: m.text, fromAura: m.fromAura)];
 
     appState.addAuraMessage(AuraChatMessage(text: message, fromAura: false));
     _controller.clear();
-    if (apiKey != null) setState(() => _sending = true);
+    setState(() => _sending = true);
     _scrollToBottom();
-
-    if (apiKey == null) {
-      appState.addAuraMessage(const AuraChatMessage(text: 'Not available', fromAura: true));
-      _scrollToBottom();
-      return;
-    }
 
     try {
       final reply = await sendAuraMessage(apiKey, history, message);
@@ -103,15 +120,34 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+    // Guarded, not unconditional — _scrollToBottom touches
+    // _scrollController, which is disposed the moment this screen is
+    // popped; reaching this line after the send/reply await if the user
+    // already backed out mid-flight would use it past that point.
+    if (!mounted) return;
     _scrollToBottom();
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final messages = AppStateScope.of(context).auraMessages;
+    final appState = AppStateScope.of(context);
+    final messages = appState.auraMessages;
+    // No Gemini key configured — the whole composer (quick replies, text
+    // field, send button) is disabled rather than letting someone type
+    // and send into a chat that can only ever answer "Not available",
+    // which used to waste their effort composing a message that was
+    // never going anywhere.
+    final available = resolveGeminiApiKey(appState.geminiApiKey) != null;
+    // Explicit override, not the shared theme's own (now cream)
+    // background — this screen reads as too "milky"/washed-out with the
+    // warm cream tone behind the chat bubbles, so it keeps the original
+    // cooler off-white instead of following every other screen's swap.
+    const auraBackground = Color(0xFFF7F9FC);
     return Scaffold(
+      backgroundColor: auraBackground,
       appBar: AppBar(
+        backgroundColor: auraBackground,
         title: Row(
           children: [
             Icon(Icons.bubble_chart, color: scheme.primary),
@@ -120,6 +156,15 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
           ],
         ),
         actions: [
+          // Hidden once there's nothing but the opening greeting left —
+          // no point offering to clear a chat that's already effectively
+          // empty.
+          if (messages.length > 1)
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Clear chat',
+              onPressed: () => _confirmClear(context, appState),
+            ),
           IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).maybePop()),
         ],
       ),
@@ -150,7 +195,7 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
                       itemCount: _quickReplies.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 8),
                       itemBuilder: (context, index) => OutlinedButton(
-                        onPressed: _sending ? null : () => _send(_quickReplies[index]),
+                        onPressed: _sending || !available ? null : () => _send(_quickReplies[index]),
                         style: OutlinedButton.styleFrom(
                           side: BorderSide(color: scheme.outlineVariant),
                           foregroundColor: scheme.onSurfaceVariant,
@@ -174,19 +219,21 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
                         Expanded(
                           child: TextField(
                             controller: _controller,
-                            enabled: !_sending,
-                            decoration: const InputDecoration(
+                            enabled: !_sending && available,
+                            decoration: InputDecoration(
                               border: InputBorder.none,
                               filled: false,
-                              hintText: 'Type a message...',
+                              hintText: available ? 'Type a message...' : 'Currently not available for chat',
                             ),
                             onSubmitted: _send,
                           ),
                         ),
                         IconButton(
-                          onPressed: _sending ? null : () => _send(),
-                          icon: Icon(Icons.send, color: scheme.onPrimary),
-                          style: IconButton.styleFrom(backgroundColor: scheme.primary),
+                          onPressed: _sending || !available ? null : () => _send(),
+                          icon: Icon(Icons.send, color: available ? scheme.onPrimary : scheme.onSurfaceVariant),
+                          style: IconButton.styleFrom(
+                            backgroundColor: available ? scheme.primary : scheme.surfaceContainerHighest,
+                          ),
                         ),
                       ],
                     ),

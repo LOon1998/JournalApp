@@ -383,7 +383,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsAboutLumina.
   ///
   /// In en, this message translates to:
-  /// **'About Lumina'**
+  /// **'About Moodlet'**
   String get settingsAboutLumina;
 
   /// No description provided for @settingsLogOut.

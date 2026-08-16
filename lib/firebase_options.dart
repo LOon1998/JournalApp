@@ -7,7 +7,7 @@
 // doesn't exist yet, here's the manual path instead — same end result:
 //
 //   1. Go to https://console.firebase.google.com, create a new project
-//      (e.g. "Lumina").
+//      (e.g. "Moodlet").
 //   2. In that project, click "Add app" → Web (</> icon). Register it
 //      (nickname doesn't matter) — Firebase shows you a config object with
 //      apiKey, authDomain, projectId, etc. Copy those into `web` below.

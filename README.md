@@ -1,6 +1,6 @@
-# Lumina
+# Moodlet
 
-A Flutter rebuild of the Lumina mood-journal mockups: daily check-ins, a
+A Flutter rebuild of the Moodlet mood-journal mockups: daily check-ins, a
 free-form journal, a mood calendar, an insights dashboard, an Aura AI
 companion chat, and a settings screen — all sharing one Material 3 theme
 lifted directly from the mockups' Tailwind color tokens.

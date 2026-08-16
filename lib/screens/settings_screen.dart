@@ -125,15 +125,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 GestureDetector(
                   onTap: () => _editProfilePhoto(context, appState),
-                  child: CircleAvatar(
-                    radius: 40,
-                    backgroundColor: scheme.primaryContainer,
-                    backgroundImage: appState.profilePhotoBase64 != null
-                        ? MemoryImage(base64Decode(appState.profilePhotoBase64!))
-                        : null,
-                    child: appState.profilePhotoBase64 == null
-                        ? Icon(Icons.self_improvement, size: 36, color: scheme.onPrimaryContainer)
-                        : null,
+                  // Same green ring treatment as the top bar/Welcome
+                  // back card's own avatar.
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration:
+                        BoxDecoration(shape: BoxShape.circle, border: Border.all(color: scheme.primary, width: 2)),
+                    child: CircleAvatar(
+                      radius: 40,
+                      backgroundColor: scheme.primaryContainer,
+                      backgroundImage: appState.profilePhotoBase64 != null
+                          ? MemoryImage(base64Decode(appState.profilePhotoBase64!))
+                          : null,
+                      child: appState.profilePhotoBase64 == null
+                          ? Icon(Icons.self_improvement, size: 36, color: scheme.onPrimaryContainer)
+                          : null,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 20),

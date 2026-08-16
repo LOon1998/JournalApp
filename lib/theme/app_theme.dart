@@ -38,13 +38,18 @@ abstract class LuminaColors {
   static const lightErrorContainer = Color(0xFFFFDAD6);
   static const lightOnErrorContainer = Color(0xFF93000A);
 
-  static const lightBackground = Color(0xFFF7F9FC);
+  // Warm cream/paper tone (matches the Moodlet logo card's background),
+  // in place of the cooler blue-white this used to be — every screen
+  // except Today (which paints its own opaque gradient straight over
+  // this, so it's untouched by the swap) picks this up via
+  // scaffoldBackgroundColor: scheme.surface in AppTheme._build.
+  static const lightBackground = Color(0xFFF2EEE3);
   static const lightOnBackground = Color(0xFF191C1E);
-  static const lightSurface = Color(0xFFF7F9FC);
+  static const lightSurface = Color(0xFFF2EEE3);
   static const lightOnSurface = Color(0xFF191C1E);
   static const lightSurfaceVariant = Color(0xFFE0E3E6);
   static const lightOnSurfaceVariant = Color(0xFF404945);
-  static const lightSurfaceBright = Color(0xFFF7F9FC);
+  static const lightSurfaceBright = Color(0xFFF2EEE3);
   static const lightSurfaceDim = Color(0xFFD8DADD);
 
   static const lightSurfaceContainerLowest = Color(0xFFFFFFFF);
@@ -101,8 +106,11 @@ enum Mood {
   okay('Okay', '😐', Color(0xFFFED7AA), Color(0xFF7C2D12)),
   sad('Sad', '😢', Color(0xFFBFDBFE), Color(0xFF1E3A8A)),
   // Grey rather than red/pink — a "bad mood" indicator doesn't need to
-  // read as an alarm color.
-  awful('Awful', '😩', Color(0xFFE5E7EB), Color(0xFF374151));
+  // read as an alarm color. Darkened from the original #E5E7EB (then
+  // #C7CBD1, still not dark enough) so it actually shows out against the
+  // app's cream background, matching how saturated the other moods'
+  // pastels already read there.
+  awful('Awful', '😩', Color(0xFFA8AEB8), Color(0xFF374151));
 
   const Mood(this.label, this.emoji, this.swatch, this.onSwatch);
 
@@ -203,7 +211,12 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: scheme.surfaceContainerLow,
+        // White, not the grey surfaceContainerLow this used to be — every
+        // text field that doesn't explicitly override its own fillColor
+        // (password fields, Change Password, ...) picks this up, so
+        // fixing it here in one place covers all of them instead of
+        // patching each screen's fields individually.
+        fillColor: scheme.surfaceContainerLowest,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(999),
           borderSide: BorderSide.none,

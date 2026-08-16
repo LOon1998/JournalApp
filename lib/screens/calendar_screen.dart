@@ -266,7 +266,7 @@ class _RoundIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: scheme.surfaceContainerLow,
+      color: scheme.surfaceContainerLowest,
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -450,7 +450,10 @@ class _EntryDetailCard extends StatelessWidget {
           showAppSnackBar(context, 'Entry deleted');
         },
         child: Material(
-          color: entry.mood.swatch.withValues(alpha: 0.15),
+          // Same darker fill + visible border as Journal's own entry
+          // card (see the comment there) — kept in sync since the two
+          // lists are meant to read as the same kind of card.
+          color: entry.mood.swatch.withValues(alpha: 0.35),
           borderRadius: BorderRadius.circular(32),
           child: InkWell(
             borderRadius: BorderRadius.circular(32),
@@ -464,7 +467,10 @@ class _EntryDetailCard extends StatelessWidget {
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: entry.mood.swatch.withValues(alpha: 0.3)),
+                // onSwatch, not swatch — see journal_screen.dart's entry
+                // card border for why (swatch is a pale pastel, so even
+                // full opacity never reads as a genuinely darker tone).
+                border: Border.all(color: entry.mood.onSwatch.withValues(alpha: 0.55), width: 1.5),
               ),
               // Needs the card's actual available width to tell whether
               // entry.text would really wrap/truncate at one line — a
@@ -514,7 +520,7 @@ class _EntryDetailCard extends StatelessWidget {
                             const SizedBox(width: 4),
                           ],
                           Text(DateFormat('h:mm a').format(entry.dateTime),
-                              style: TextStyle(fontSize: 12, color: scheme.outline)),
+                              style: const TextStyle(fontSize: 12, color: Colors.black)),
                           if (hasOverflow)
                             IconButton(
                               onPressed: onToggleExpand,

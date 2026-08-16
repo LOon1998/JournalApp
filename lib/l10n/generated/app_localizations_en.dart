@@ -150,7 +150,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsHelpSupport => 'Help & Support';
 
   @override
-  String get settingsAboutLumina => 'About Lumina';
+  String get settingsAboutLumina => 'About Moodlet';
 
   @override
   String get settingsLogOut => 'Log Out';

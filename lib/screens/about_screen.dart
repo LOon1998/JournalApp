@@ -7,12 +7,11 @@ import 'privacy_policy_screen.dart';
 /// in package_info_plus just to read that value back at runtime).
 const _appVersion = '1.0.0';
 
-/// Reached from Settings' "About Lumina" row — brand story, core values,
+/// Reached from Settings' "About Moodlet" row — brand story, core values,
 /// and version/legal info. Matches the provided web mockup's layout and
 /// copy, restyled with this app's own FloatingCard/theme conventions
-/// instead of the mockup's literal Tailwind colors, and using the same
-/// self_improvement mark WelcomeScreen/AppLockScreen already use in place
-/// of an actual logo image asset.
+/// instead of the mockup's literal Tailwind colors, and using the real
+/// Moodlet logo mark (assets/branding/logoIcon.png).
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 
@@ -21,35 +20,27 @@ class AboutScreen extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('About Lumina')),
+      appBar: AppBar(title: const Text('About Moodlet')),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+          padding: const EdgeInsets.fromLTRB(20, 48, 20, 32),
           children: [
             Center(
               child: Column(
                 children: [
-                  Container(
-                    width: 96,
-                    height: 96,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: scheme.surfaceContainerLowest,
-                      borderRadius: BorderRadius.circular(32),
-                      border: Border.all(color: scheme.surfaceContainerLow, width: 4),
-                      boxShadow: [
-                        BoxShadow(color: scheme.primary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8)),
-                      ],
-                    ),
-                    child: Icon(Icons.self_improvement, size: 48, color: scheme.primary),
-                  ),
+                  // logo.png (icon + "Moodlet" + subtitle baked into one
+                  // image) — not the boxed square logoIcon.png treatment
+                  // this used to have; that square container was sized
+                  // for a compact icon-only mark, not this wider
+                  // icon+wordmark image.
+                  Image.asset('assets/branding/logo.png', height: 72),
                   const SizedBox(height: 20),
                   Text('Your Digital Sanctuary',
                       textAlign: TextAlign.center,
                       style: textTheme.headlineSmall?.copyWith(color: scheme.primary, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 8),
                   Text(
-                    "Lumina was created as a safe, non-judgmental space for emotional reflection. We believe "
+                    "Moodlet was created as a safe, non-judgmental space for emotional reflection. We believe "
                     "taking a moment for yourself shouldn't feel like a chore, but a gentle habit of self-care. "
                     "Here, you can pause, breathe, and untangle your thoughts in a calm space designed for "
                     "mindful growth.",
@@ -104,7 +95,7 @@ class AboutScreen extends StatelessWidget {
               child: Text('Version $_appVersion', style: TextStyle(fontSize: 12, color: scheme.outline)),
             ),
             Center(
-              child: Text('© ${DateTime.now().year} Lumina Journal. All rights reserved.',
+              child: Text('© ${DateTime.now().year} Moodlet Journal. All rights reserved.',
                   style: TextStyle(fontSize: 12, color: scheme.outline)),
             ),
           ],

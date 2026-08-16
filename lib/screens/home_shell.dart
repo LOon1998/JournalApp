@@ -30,6 +30,7 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   late int _index = widget.initialIndex;
 
+  static const _insightsIndex = 0;
   static const _journalIndex = 2;
   static const _calendarIndex = 3;
 
@@ -37,12 +38,13 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
 
-    // Rebuilt (not a static const list) so JournalScreen/CalendarScreen
-    // can be told whether they're the tab currently showing — see their
-    // `active` field. IndexedStack still keys these by position/type, so
-    // this doesn't lose either screen's State when _index changes.
+    // Rebuilt (not a static const list) so InsightsScreen/JournalScreen/
+    // CalendarScreen can be told whether they're the tab currently
+    // showing — see their `active` fields. IndexedStack still keys these
+    // by position/type, so this doesn't lose any of their State when
+    // _index changes.
     final tabs = [
-      const InsightsScreen(),
+      InsightsScreen(active: _index == _insightsIndex),
       const TodayScreen(),
       JournalScreen(active: _index == _journalIndex),
       CalendarScreen(active: _index == _calendarIndex),
@@ -64,7 +66,11 @@ class _HomeShellState extends State<HomeShell> {
     }
 
     return Scaffold(
-      appBar: const LuminaTopBar(),
+      // Insights skips the avatar (and left-aligns the logo instead of
+      // centering it) — it already opens with its own "Welcome back"
+      // card showing the same photo right below, so repeating it here
+      // too was a redundant second avatar. Every other tab keeps both.
+      appBar: LuminaTopBar(showAvatar: _index != _insightsIndex),
       body: LayoutBuilder(
         builder: (context, constraints) {
           return Stack(

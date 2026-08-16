@@ -75,7 +75,7 @@ class NotificationService {
     await requestPermission();
     await _plugin.zonedSchedule(
       _dailyReminderId,
-      'Lumina',
+      'Moodlet',
       'How was your day? Take a moment to reflect. 🌙',
       _nextInstanceOfReminderTime(),
       const NotificationDetails(
@@ -119,7 +119,7 @@ class NotificationService {
     await requestPermission();
     await _plugin.show(
       _testNotificationId,
-      'Lumina',
+      'Moodlet',
       'How was your day? Take a moment to reflect. 🌙',
       const NotificationDetails(
         android: AndroidNotificationDetails(

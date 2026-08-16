@@ -146,6 +146,19 @@ class AppState extends ChangeNotifier {
     _persist();
   }
 
+  /// Resets the transcript back to just the opening greeting — same
+  /// message [auraMessages] itself starts with, so clearing the chat
+  /// looks identical to a brand-new conversation rather than leaving it
+  /// empty.
+  void clearAuraMessages() {
+    auraMessages
+      ..clear()
+      ..add(const AuraChatMessage(
+          text: "Hi there! I'm Aura, your mindful companion. How are you feeling today?", fromAura: true));
+    notifyListeners();
+    _persist();
+  }
+
   /// Journal's "Daily Reflection" prompt, cached for whichever single day
   /// [_dailyReflectionDate] names (yyyy-mm-dd) — generated once per day
   /// (AI-written if a Gemini key is available, otherwise picked from a
@@ -457,14 +470,25 @@ class AppState extends ChangeNotifier {
     // same generic "not enough data" text, which looked like the feature
     // was just broken/stuck rather than correctly reporting there was
     // nothing to correlate yet.
+    //
+    // Deliberately spread across tags rather than giving any one tag
+    // exclusive ownership of the top mood tier — an earlier version tied
+    // *both* Great-mood samples to "Exercise" alone, so Exercise was
+    // structurally the only tag that could ever win Key Insight's
+    // best-correlated-tag comparison, no matter how the 7 days
+    // randomized. Every tag here now spans more than one mood tier, so
+    // which tag "wins" genuinely depends on which days got picked.
     const samples = [
       (Mood.great, 'Feeling Great', 'Everything just clicked today — great energy all around.', 'Exercise'),
+      (Mood.great, 'Feeling On Top', 'Big win today — still riding the high from it.', 'Family'),
       (Mood.good, 'Feeling Good', 'Solid, easy day. Nothing dramatic, just steady and pleasant.', 'Friends'),
+      (Mood.good, 'Feeling Content', 'Simple day, but genuinely content with how it went.', 'Sleep'),
+      (Mood.good, 'Pretty Good Day', 'Nothing major, but things generally went my way.', 'Exercise'),
       (Mood.okay, 'Feeling Okay', 'Fine, but a bit flat — just going through the motions.', 'Work'),
+      (Mood.okay, 'Feeling Meh', 'Middle-of-the-road day, nothing worth complaining about.', 'Family'),
       (Mood.sad, 'Feeling Down', "Rough one. Couldn't shake the low mood most of the day.", 'Work'),
-      (Mood.good, 'Feeling Content', 'Simple day, but genuinely content with how it went.', 'Family'),
-      (Mood.great, 'Feeling On Top', 'Big win today — still riding the high from it.', 'Exercise'),
-      (Mood.okay, 'Feeling Meh', 'Middle-of-the-road day, nothing worth complaining about.', 'Sleep'),
+      (Mood.sad, 'Rough Day', 'Tough one — hard to focus and easy to feel discouraged.', 'Sleep'),
+      (Mood.awful, 'Really Struggling', 'One of those days that just felt heavy from start to finish.', 'Work'),
     ];
     final random = Random();
     var added = false;
@@ -476,7 +500,16 @@ class AppState extends ChangeNotifier {
       if (hasReachedDailyCap(day)) continue;
       final (mood, title, text, activity) = samples[random.nextInt(samples.length)];
       _entries.add(JournalEntry(
-        id: 'test-week-${day.microsecondsSinceEpoch}-$daysAgo',
+        // DateTime.now(), not day's own (fixed, midnight-of-that-date)
+        // microsecondsSinceEpoch — day is identical every time this runs
+        // on the same calendar date, so tapping "Fill Past 7 Days" more
+        // than once in a day generated the exact same id for the exact
+        // same day-slot on the second tap, colliding with the entry the
+        // first tap already added there ("Duplicate keys found" crash,
+        // and worse, silently corrupting whichever entry an id-lookup
+        // hit first). now() actually changes between taps, so this can't
+        // collide with an earlier run the way the fixed day value could.
+        id: 'test-week-${DateTime.now().microsecondsSinceEpoch}-$daysAgo',
         dateTime: day.add(const Duration(hours: 12)),
         mood: mood,
         title: title,

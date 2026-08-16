@@ -317,16 +317,15 @@ class _JournalScreenState extends State<JournalScreen> {
   // Background for the content editor and the tag input — themed to
   // actually show the selected Writing Theme swatch's color, the same
   // low-alpha blend used everywhere else a Writing Theme tints a card.
-  // "White" is the one exception: blending it in at low alpha over an
-  // already near-white light-mode surface is invisible, so that specific
-  // case swaps to grey instead. Dark mode needs no such exception —
+  // "White" resolves to a plain, literal white in light mode — no
+  // special-casing needed to keep it visible now that the app's own
+  // background is a warm cream (not a near-white surface anymore), so a
+  // genuinely white card already reads as its own distinct, visible
+  // "card" against it. Dark mode still needs no exception either —
   // resolveJournalThemeColor already resolves White to black there,
   // which blends in as a visible (if subtle) darkening, not nothing.
   Color _composerFillColor(ColorScheme scheme) {
     if (_themeName == null) return scheme.surfaceContainerLowest;
-    if (_themeName == 'White' && scheme.brightness == Brightness.light) {
-      return scheme.surfaceContainerLow;
-    }
     return Color.alphaBlend(
       resolveJournalThemeColor(_themeName!, scheme.brightness).withValues(alpha: 0.35),
       scheme.surfaceContainerLowest,
@@ -491,6 +490,12 @@ class _JournalScreenState extends State<JournalScreen> {
             decoration: const InputDecoration(
               border: InputBorder.none,
               isDense: true,
+              // Without this, the global theme's own filled/fillColor
+              // (a light grey) painted right over this field's parent
+              // Container, which already sets a plain white background —
+              // the title looked grey no matter what, since the
+              // TextField's own fill was covering it up every time.
+              filled: false,
               contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               hintText: 'Title your journal...',
               counterText: '',
@@ -652,12 +657,24 @@ class _JournalScreenState extends State<JournalScreen> {
               _TagChip(
                 label: tag,
                 selected: _tags.contains(tag),
+                // Plain white always — not _composerFillColor, which
+                // follows whichever Writing Theme is currently picked
+                // (right for the title/body/tag-input fields, which are
+                // meant to wash with the theme, but wrong here: it made
+                // an unselected tag pick up e.g. a yellow/tan tint under
+                // the Yellow/Sunset themes instead of staying neutral).
+                unselectedColor: scheme.surfaceContainerLowest,
                 onTap: () => setState(() {
                   if (!_tags.remove(tag)) _tags.add(tag);
                 }),
               ),
             for (final tag in _tags.where((t) => !_tagOptions.contains(t)))
-              _TagChip(label: tag, selected: true, onTap: () => setState(() => _tags.remove(tag))),
+              _TagChip(
+                label: tag,
+                selected: true,
+                unselectedColor: scheme.surfaceContainerLowest,
+                onTap: () => setState(() => _tags.remove(tag)),
+              ),
             // Hidden once at the custom-tag cap, rather than still
             // inviting a tap that _confirmTag would just reject.
             if (_tags.where((t) => !_tagOptions.contains(t)).length < _maxCustomTags)
@@ -668,10 +685,11 @@ class _JournalScreenState extends State<JournalScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
+                    color: scheme.surfaceContainerLowest,
                     shape: BoxShape.circle,
-                    border: Border.all(color: scheme.outlineVariant, width: 2),
+                    border: Border.all(color: scheme.primary, width: 2),
                   ),
-                  child: Icon(Icons.add, size: 18, color: scheme.outlineVariant),
+                  child: Icon(Icons.add, size: 18, color: scheme.primary),
                 ),
               ),
           ],
@@ -689,11 +707,12 @@ class _JournalScreenState extends State<JournalScreen> {
                   decoration: InputDecoration(
                     hintText: 'Add a tag',
                     counterText: '',
-                    // Matches the content editor's background so it
-                    // reads consistently against the selected Writing
-                    // Theme — see _composerFillColor.
+                    // Plain white always, like the tag chips next to it
+                    // (see their own unselectedColor comment) — not
+                    // _composerFillColor, which would pick up whichever
+                    // Writing Theme's tint (e.g. Yellow) is selected.
                     filled: true,
-                    fillColor: _composerFillColor(scheme),
+                    fillColor: scheme.surfaceContainerLowest,
                   ),
                   // Enter/"Done" on the keyboard confirms...
                   onSubmitted: (_) => _confirmTag(),
@@ -965,8 +984,11 @@ class _TimelineRow extends StatelessWidget {
         child: Material(
           // Mood-tinted like Calendar's day-view card, instead of a flat
           // neutral gray — the two lists should read as the same kind of
-          // card wherever an entry shows up.
-          color: entry.mood.swatch.withValues(alpha: 0.15),
+          // card wherever an entry shows up. Darker fill + a clearly
+          // visible border (was 0.15/0.3 — read as too washed-out/pale to
+          // stand out against the app's own cream background) than the
+          // original mockup's much subtler tint.
+          color: entry.mood.swatch.withValues(alpha: 0.35),
           borderRadius: BorderRadius.circular(20),
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
@@ -981,9 +1003,13 @@ class _TimelineRow extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
+                // onSwatch (mood's own dark contrast color), not swatch
+                // itself — swatch is a pale pastel, so even at full
+                // opacity it never reads as a genuinely darker tone, just
+                // a less transparent version of the same pale color.
                 border: Border.all(
-                  color: highlighted ? scheme.primary : entry.mood.swatch.withValues(alpha: 0.3),
-                  width: highlighted ? 2 : 1,
+                  color: highlighted ? scheme.primary : entry.mood.onSwatch.withValues(alpha: 0.55),
+                  width: highlighted ? 2 : 1.5,
                 ),
               ),
               // Needs the card's actual available width to tell whether
@@ -1034,7 +1060,7 @@ class _TimelineRow extends StatelessWidget {
                             const SizedBox(width: 4),
                           ],
                           Text(DateFormat('h:mm a').format(entry.dateTime),
-                              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                              style: const TextStyle(fontSize: 12, color: Colors.black)),
                           if (hasOverflow)
                             IconButton(
                               onPressed: onToggleExpand,
@@ -1092,11 +1118,18 @@ class _TimelineRow extends StatelessWidget {
 
 
 class _TagChip extends StatelessWidget {
-  const _TagChip({required this.label, required this.selected, required this.onTap});
+  const _TagChip({required this.label, required this.selected, required this.onTap, this.unselectedColor});
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
+
+  /// Background for the *unselected* state — defaults to the plain
+  /// neutral grey if not given. The selected state keeps its own fixed
+  /// green tint regardless (that's a meaningful "this one's picked"
+  /// signal, not a theme-following background), so only this one
+  /// follows the composer's current Writing Theme.
+  final Color? unselectedColor;
 
   @override
   Widget build(BuildContext context) {
@@ -1107,7 +1140,9 @@ class _TagChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? scheme.primaryContainer.withValues(alpha: 0.5) : scheme.surfaceContainerHigh,
+          color: selected
+              ? scheme.primaryContainer.withValues(alpha: 0.5)
+              : (unselectedColor ?? scheme.surfaceContainerHigh),
           borderRadius: BorderRadius.circular(999),
         ),
         child: Text(label,

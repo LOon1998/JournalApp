@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/media_capture.dart';
+import '../theme/app_theme.dart';
 import '../widgets/app_snackbar.dart';
 import '../widgets/floating_card.dart';
 
@@ -127,11 +128,23 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+    // Forced to the light theme regardless of device/system dark mode —
+    // not just the background (a plain color override there would've
+    // left every scheme.onSurfaceVariant/outline-colored text using the
+    // *dark* scheme's light-toned colors, unreadable against a light
+    // background). AppTheme.light's own scaffoldBackgroundColor already
+    // is the same warm cream the rest of the app uses, so nothing extra
+    // is needed for that either. A Builder is required so the
+    // Theme.of(context) calls below actually see this override — the
+    // outer `context` this build() receives is still the old one.
+    return Theme(
+      data: AppTheme.light,
+      child: Builder(builder: (context) {
+        final scheme = Theme.of(context).colorScheme;
+        final textTheme = Theme.of(context).textTheme;
 
-    return Scaffold(
-      body: Stack(
+        return Scaffold(
+          body: Stack(
         children: [
           // Soft mint/peach glow blobs in the corners — same decorative
           // background the web mockups use behind the sign-up card.
@@ -153,19 +166,27 @@ class _AuthScreenState extends State<AuthScreen> {
                   constraints: const BoxConstraints(maxWidth: 400),
                   child: Column(
                     children: [
-                      CircleAvatar(
-                        radius: 32,
-                        backgroundColor: scheme.primaryContainer,
-                        child: Icon(Icons.self_improvement, size: 32, color: scheme.onPrimaryContainer),
-                      ),
+                      // logo.png (icon + "Moodlet" + subtitle baked into
+                      // one image), not logoIcon.png — no circle
+                      // background behind it (unlike the old
+                      // self_improvement placeholder), since the artwork
+                      // already has its own distinct look.
+                      Image.asset('assets/branding/logo.png', height: 84),
                       const SizedBox(height: 16),
-                      Text(_isSignUp ? 'Create Account' : 'Lumina',
-                          textAlign: TextAlign.center,
-                          style: textTheme.headlineMedium?.copyWith(color: scheme.primary, fontWeight: FontWeight.w700)),
+                      // "Moodlet" dropped here in Sign In mode — the logo
+                      // above already says it, so this was just a
+                      // redundant second copy of the same word. Sign Up
+                      // still shows "Create Account", which is real,
+                      // distinct information.
+                      if (_isSignUp)
+                        Text('Create Account',
+                            textAlign: TextAlign.center,
+                            style:
+                                textTheme.headlineMedium?.copyWith(color: scheme.primary, fontWeight: FontWeight.w700)),
                       const SizedBox(height: 4),
                       Text(
                         _isSignUp
-                            ? 'Join Lumina and start your journaling journey.'
+                            ? 'Join Moodlet and start your journaling journey.'
                             : 'Sign in to continue your journey of mindfulness.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: scheme.onSurfaceVariant),
@@ -332,6 +353,8 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
         ],
       ),
+        );
+      }),
     );
   }
 }

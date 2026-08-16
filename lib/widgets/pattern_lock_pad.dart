@@ -154,7 +154,10 @@ class _PatternPainter extends CustomPainter {
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2,
         );
-        canvas.drawCircle(center, _centerDotRadius, Paint()..color = idleColor);
+        // White, not idleColor like the ring around it — reads more
+        // clearly as its own distinct dot rather than blending into the
+        // same grey outline.
+        canvas.drawCircle(center, _centerDotRadius, Paint()..color = Colors.white);
       }
     }
   }
