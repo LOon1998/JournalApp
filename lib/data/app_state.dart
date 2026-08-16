@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/journal_entry.dart';
@@ -66,8 +67,18 @@ class AppState extends ChangeNotifier {
   String userName;
   final String userEmail;
 
+  /// Hard ceiling on [userName]'s length — enforced *here*, not just by
+  /// the edit dialog's own TextField.maxLength. A mobile keyboard's
+  /// predictive-text/autocomplete can swap in a whole suggested word in
+  /// one platform-level update, which is a known way to slip past a
+  /// TextField's live maxLength formatter on some devices — enforcing it
+  /// again where the value actually gets saved means the stored name
+  /// can never exceed this regardless of what got past the UI.
+  static const maxUserNameLength = 10;
+
   void setUserName(String name) {
-    final trimmed = name.trim();
+    var trimmed = name.trim();
+    if (trimmed.length > maxUserNameLength) trimmed = trimmed.substring(0, maxUserNameLength);
     debugPrint('AppState.setUserName($uid): called with "$name" (trimmed: "$trimmed", current: "$userName")');
     if (trimmed.isEmpty || trimmed == userName) {
       debugPrint('AppState.setUserName($uid): no-op (empty, or same as current)');
@@ -428,36 +439,49 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Testing helper: adds one real entry for each of the last 7 days
-  /// (today included) with varied moods and written text, so Insights'
+  /// Testing helper: adds one real entry for each of the 7 days *before*
+  /// today (today itself is deliberately skipped — see the loop below) —
+  /// a randomly-picked mood/text/activity sample per day, so Insights'
   /// Weekly Trend chart has a full week to plot without waiting for
   /// actual real usage or manually logging a week's worth of entries by
   /// hand. Skips any day already at the daily cap rather than erroring.
-  /// Adds fresh entries every time it's tapped, same as any other manual
-  /// entry — use "Clear Today's Entries" (or swipe individual ones) to
-  /// undo.
+  /// Adds fresh (freshly randomized) entries every time it's tapped, same
+  /// as any other manual entry — use "Clear Today's Entries" (or swipe
+  /// individual ones) to undo.
   void seedPastWeekForTesting() {
     final now = DateTime.now();
+    // Each sample carries an activity tag on purpose (not just mood/text)
+    // — "What affects your mood" (Insights) and "Key Insight" (Weekly
+    // Detail) both work by correlating mood with tags, so entries with no
+    // tags at all give them nothing to find and always fall back to the
+    // same generic "not enough data" text, which looked like the feature
+    // was just broken/stuck rather than correctly reporting there was
+    // nothing to correlate yet.
     const samples = [
-      (Mood.great, 'Feeling Great', 'Everything just clicked today — great energy all around.'),
-      (Mood.good, 'Feeling Good', 'Solid, easy day. Nothing dramatic, just steady and pleasant.'),
-      (Mood.okay, 'Feeling Okay', 'Fine, but a bit flat — just going through the motions.'),
-      (Mood.sad, 'Feeling Down', "Rough one. Couldn't shake the low mood most of the day."),
-      (Mood.good, 'Feeling Content', 'Simple day, but genuinely content with how it went.'),
-      (Mood.great, 'Feeling On Top', 'Big win today — still riding the high from it.'),
-      (Mood.okay, 'Feeling Meh', 'Middle-of-the-road day, nothing worth complaining about.'),
+      (Mood.great, 'Feeling Great', 'Everything just clicked today — great energy all around.', 'Exercise'),
+      (Mood.good, 'Feeling Good', 'Solid, easy day. Nothing dramatic, just steady and pleasant.', 'Friends'),
+      (Mood.okay, 'Feeling Okay', 'Fine, but a bit flat — just going through the motions.', 'Work'),
+      (Mood.sad, 'Feeling Down', "Rough one. Couldn't shake the low mood most of the day.", 'Work'),
+      (Mood.good, 'Feeling Content', 'Simple day, but genuinely content with how it went.', 'Family'),
+      (Mood.great, 'Feeling On Top', 'Big win today — still riding the high from it.', 'Exercise'),
+      (Mood.okay, 'Feeling Meh', 'Middle-of-the-road day, nothing worth complaining about.', 'Sleep'),
     ];
+    final random = Random();
     var added = false;
-    for (var daysAgo = 0; daysAgo < 7; daysAgo++) {
+    // Starts at 1, not 0 — today is deliberately left alone so this stays
+    // a "past week" backfill rather than also planting a fake entry on
+    // top of whatever's actually been logged today.
+    for (var daysAgo = 1; daysAgo <= 7; daysAgo++) {
       final day = DateTime(now.year, now.month, now.day).subtract(Duration(days: daysAgo));
       if (hasReachedDailyCap(day)) continue;
-      final (mood, title, text) = samples[daysAgo % samples.length];
+      final (mood, title, text, activity) = samples[random.nextInt(samples.length)];
       _entries.add(JournalEntry(
         id: 'test-week-${day.microsecondsSinceEpoch}-$daysAgo',
         dateTime: day.add(const Duration(hours: 12)),
         mood: mood,
         title: title,
         text: text,
+        activities: [activity],
       ));
       added = true;
     }

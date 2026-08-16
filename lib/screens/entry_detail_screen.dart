@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart' show MaxLengthEnforcement;
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../data/app_state.dart';
@@ -492,6 +493,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                                       autofocus: true,
                                       textAlign: TextAlign.center,
                                       maxLength: _maxTitleLength,
+                                      maxLengthEnforcement: MaxLengthEnforcement.enforced,
                                       style: Theme.of(context)
                                           .textTheme
                                           .titleLarge
@@ -659,6 +661,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                             maxLines: null,
                             minLines: 6,
                             maxLength: _maxTextLength,
+                            maxLengthEnforcement: MaxLengthEnforcement.enforced,
                             style: TextStyle(fontSize: 16, height: 1.6, color: scheme.onSurface),
                             decoration: InputDecoration(
                               border: InputBorder.none,
@@ -947,6 +950,7 @@ class _AddTagButtonState extends State<_AddTagButton> {
                 controller: _controller,
                 autofocus: true,
                 maxLength: _maxTagLength,
+                maxLengthEnforcement: MaxLengthEnforcement.enforced,
                 style: const TextStyle(fontSize: 13),
                 decoration: const InputDecoration(
                   isDense: true,

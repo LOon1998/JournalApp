@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MaxLengthEnforcement;
 import 'package:intl/intl.dart';
 import '../data/app_state.dart';
 import '../models/journal_entry.dart';
@@ -485,6 +486,7 @@ class _JournalScreenState extends State<JournalScreen> {
           child: TextField(
             controller: _titleController,
             maxLength: _maxTitleLength,
+            maxLengthEnforcement: MaxLengthEnforcement.enforced,
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             decoration: const InputDecoration(
               border: InputBorder.none,
@@ -509,6 +511,7 @@ class _JournalScreenState extends State<JournalScreen> {
                 minLines: 8,
                 maxLines: 12,
                 maxLength: _maxJournalLength,
+                maxLengthEnforcement: MaxLengthEnforcement.enforced,
                 style: const TextStyle(fontSize: 18, height: 1.5, fontWeight: FontWeight.w500),
                 decoration: const InputDecoration(
                   border: InputBorder.none,
@@ -682,6 +685,7 @@ class _JournalScreenState extends State<JournalScreen> {
                   controller: _tagController,
                   autofocus: true,
                   maxLength: _maxTagLength,
+                  maxLengthEnforcement: MaxLengthEnforcement.enforced,
                   decoration: InputDecoration(
                     hintText: 'Add a tag',
                     counterText: '',

@@ -14,11 +14,6 @@
          reasserted the next time the app happens to be opened. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- Privacy & Security's Fingerprint Unlock — USE_BIOMETRIC covers
-         modern Android; USE_FINGERPRINT is the older permission some
-         pre-Android-9 devices still need for the same prompt. -->
-    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
-    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
     <application
         android:label="lumina"
         android:name="${applicationName}"

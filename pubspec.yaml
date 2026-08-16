@@ -76,11 +76,9 @@ dependencies:
   flutter_local_notifications: ^18.0.1
   timezone: ^0.9.4
   flutter_timezone: ^3.0.1
-  # Privacy & Security's Fingerprint Unlock (device biometric prompt) and
-  # Pattern Lock (hashing the drawn pattern before storing it locally —
-  # see app_lock_service.dart for why neither of these syncs to Firestore
-  # like the rest of AppState does).
-  local_auth: ^2.3.0
+  # Privacy & Security's Pattern Lock — hashing the drawn pattern before
+  # storing it locally (see app_lock_service.dart for why it doesn't sync
+  # to Firestore like the rest of AppState does).
   crypto: ^3.0.6
   lottie: ^3.5.1
   url_launcher: ^6.3.2

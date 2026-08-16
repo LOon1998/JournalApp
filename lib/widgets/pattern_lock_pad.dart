@@ -4,6 +4,13 @@ import 'package:flutter/material.dart';
 /// (PatternLockSetupScreen) and to verify it (AppLockScreen). Dots are
 /// numbered 0-8, left-to-right/top-to-bottom; dragging a finger across at
 /// least two dots and lifting reports the visited order via [onComplete].
+///
+/// Styled to match the familiar Android/iOS pattern-lock look — a plain
+/// outlined ring with a small center dot when idle, filling in solid once
+/// connected, with a straight line trailing live to the finger while
+/// dragging — rather than the filled-circle-plus-glow-halo look an
+/// earlier version used, which read as busier/less recognizable than the
+/// pattern lock people already know from their own phone.
 class PatternLockPad extends StatefulWidget {
   const PatternLockPad({
     super.key,
@@ -107,14 +114,21 @@ class _PatternPainter extends CustomPainter {
   final Color activeColor;
   final Color idleColor;
 
+  static const _ringRadius = 16.0;
+  static const _centerDotRadius = 4.0;
+
   @override
   void paint(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = activeColor
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round;
-
+    // The trailing line, drawn first so the dots paint on top of it —
+    // straight segments between each connected dot, continuing live to
+    // wherever the finger actually is right now.
     if (visited.isNotEmpty) {
+      final linePaint = Paint()
+        ..color = activeColor
+        ..strokeWidth = 4
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..style = PaintingStyle.stroke;
       final path = Path()..moveTo(dotCenters[visited.first].dx, dotCenters[visited.first].dy);
       for (final i in visited.skip(1)) {
         path.lineTo(dotCenters[i].dx, dotCenters[i].dy);
@@ -124,16 +138,23 @@ class _PatternPainter extends CustomPainter {
     }
 
     for (var i = 0; i < dotCenters.length; i++) {
-      final isVisited = visited.contains(i);
-      canvas.drawCircle(dotCenters[i], 10, Paint()..color = isVisited ? activeColor : idleColor);
-      if (isVisited) {
+      final center = dotCenters[i];
+      if (visited.contains(i)) {
+        // Connected: a plain filled circle — no separate glow/halo ring,
+        // which is what made the earlier version look busier.
+        canvas.drawCircle(center, _ringRadius, Paint()..color = activeColor);
+      } else {
+        // Idle: a thin outlined ring with a small solid center dot —
+        // the standard pattern-lock look, rather than a single flat dot.
         canvas.drawCircle(
-          dotCenters[i],
-          16,
+          center,
+          _ringRadius,
           Paint()
-            ..color = activeColor.withValues(alpha: 0.25)
-            ..style = PaintingStyle.fill,
+            ..color = idleColor
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2,
         );
+        canvas.drawCircle(center, _centerDotRadius, Paint()..color = idleColor);
       }
     }
   }

@@ -6,8 +6,10 @@ import '../widgets/floating_card.dart';
 import 'change_password_screen.dart';
 import 'pattern_lock_setup_screen.dart';
 
-/// Matches the "Privacy & Security" mockup: Change Password, Fingerprint
-/// Unlock, and Pattern Lock, under an "Account Security" section.
+/// Matches the "Privacy & Security" mockup: Change Password and Pattern
+/// Lock, under an "Account Security" section. Fingerprint Unlock was
+/// dropped — not worth the added complexity/permissions for what it
+/// actually offered here.
 class PrivacySecurityScreen extends StatefulWidget {
   const PrivacySecurityScreen({super.key});
 
@@ -20,10 +22,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   AppLockService? _lockService;
 
   bool _loading = true;
-  bool _biometricAvailable = false;
-  bool _biometricEnabled = false;
   bool _hasPattern = false;
-  bool _biometricBusy = false;
 
   @override
   void initState() {
@@ -40,47 +39,12 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
 
   Future<void> _load() async {
     final service = _lockService!;
-    final available = await service.isBiometricAvailable();
-    final enabled = await service.isBiometricEnabled();
     final hasPattern = await service.hasPattern();
     if (!mounted) return;
     setState(() {
-      _biometricAvailable = available;
-      _biometricEnabled = enabled;
       _hasPattern = hasPattern;
       _loading = false;
     });
-  }
-
-  Future<void> _toggleBiometric(bool value) async {
-    final service = _lockService;
-    if (service == null) return;
-
-    if (!value) {
-      await service.setBiometricEnabled(false);
-      if (!mounted) return;
-      setState(() => _biometricEnabled = false);
-      return;
-    }
-
-    if (!_biometricAvailable) {
-      showAppSnackBar(context, 'No fingerprint or face unlock is set up on this device');
-      return;
-    }
-
-    // Require one real successful scan before turning it on — so a
-    // half-broken sensor can't lock someone out without them knowing.
-    setState(() => _biometricBusy = true);
-    final ok = await service.authenticateWithBiometrics();
-    if (!mounted) return;
-    setState(() => _biometricBusy = false);
-    if (ok) {
-      await service.setBiometricEnabled(true);
-      if (!mounted) return;
-      setState(() => _biometricEnabled = true);
-    } else {
-      showAppSnackBar(context, "Couldn't verify — Fingerprint Unlock wasn't enabled");
-    }
   }
 
   Future<void> _openPatternSetup() async {
@@ -186,15 +150,6 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
                             ),
-                          ),
-                          SwitchListTile(
-                            secondary: _biometricBusy
-                                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.4))
-                                : const Icon(Icons.fingerprint),
-                            title: const Text('Fingerprint Unlock'),
-                            subtitle: _biometricAvailable ? null : const Text('Not available on this device'),
-                            value: _biometricEnabled,
-                            onChanged: _biometricBusy ? null : _toggleBiometric,
                           ),
                           ListTile(
                             leading: const Icon(Icons.pattern),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MaxLengthEnforcement;
 import '../data/app_state.dart';
 import '../theme/activity_icons.dart';
 import '../theme/app_theme.dart';
@@ -268,6 +269,7 @@ class _TodayScreenState extends State<TodayScreen> {
                                 controller: _customActivityController,
                                 autofocus: true,
                                 maxLength: _maxActivityLength,
+                                maxLengthEnforcement: MaxLengthEnforcement.enforced,
                                 decoration: const InputDecoration(
                                   hintText: 'What else?',
                                   counterText: '',

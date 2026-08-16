@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MaxLengthEnforcement;
 import 'package:image_picker/image_picker.dart';
 import '../data/app_state.dart';
 import '../l10n/generated/app_localizations.dart';
@@ -26,7 +27,11 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  static const _maxNameLength = 10;
+  // Single source of truth is AppState.maxUserNameLength now — it also
+  // enforces this as a hard backstop when actually saving, since a
+  // mobile keyboard's predictive text can slip past this field's own
+  // live maxLength on some devices.
+  static const _maxNameLength = AppState.maxUserNameLength;
 
   late final _geminiKeyController = TextEditingController(text: AppStateScope.of(context).geminiApiKey);
   bool _obscureGeminiKey = true;
@@ -502,6 +507,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           controller: controller,
           autofocus: true,
           maxLength: _maxNameLength,
+          // Explicit, not left to the platform default — Flutter's own
+          // default enforcement is `truncateAfterCompositionEnds` on iOS
+          // (and Flutter Web reports itself as iOS on an iPhone browser),
+          // which lets typing go past the limit temporarily instead of
+          // hard-stopping at it like every other platform already does.
+          maxLengthEnforcement: MaxLengthEnforcement.enforced,
           decoration: const InputDecoration(hintText: 'Your name', counterText: ''),
           onSubmitted: (value) => Navigator.pop(context, value),
         ),
