@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/app_state.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../services/gemini_service.dart';
 
 /// Full-screen Aura chat, opened from the floating chat button. The
@@ -22,23 +23,29 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
   // at random each time the chat's opened (no AI call for this; it's just
   // a handful of static conversation starters, not worth spending Gemini
   // quota on), so the quick replies feel a little different session to
-  // session instead of always being the same fixed three.
-  static const _quickReplyPool = [
-    'I need to vent',
-    'Breathing exercise',
-    'Just chatting',
-    'Help me reflect on today',
-    "I'm feeling anxious",
-    'Celebrate a win with me',
-    "I'm feeling great today",
-    'Give me a journal prompt',
-    'I need some encouragement',
-    'Help me unwind',
-    "I'm feeling stuck",
-    'Something to be grateful for',
-  ];
+  // session instead of always being the same fixed three. Indices only
+  // (not the localized text itself) are picked here, in initState, since
+  // AppLocalizations needs a BuildContext that isn't safely available
+  // yet — build() resolves them to actual strings each frame.
+  static const _quickReplyPoolSize = 12;
 
-  late final List<String> _quickReplies = (List.of(_quickReplyPool)..shuffle()).take(3).toList();
+  late final List<int> _quickReplyIndices =
+      (List.generate(_quickReplyPoolSize, (i) => i)..shuffle()).take(3).toList();
+
+  List<String> _quickReplyPool(AppLocalizations l10n) => [
+        l10n.auraQuickReply1,
+        l10n.auraQuickReply2,
+        l10n.auraQuickReply3,
+        l10n.auraQuickReply4,
+        l10n.auraQuickReply5,
+        l10n.auraQuickReply6,
+        l10n.auraQuickReply7,
+        l10n.auraQuickReply8,
+        l10n.auraQuickReply9,
+        l10n.auraQuickReply10,
+        l10n.auraQuickReply11,
+        l10n.auraQuickReply12,
+      ];
 
   bool _sending = false;
 
@@ -71,16 +78,17 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
   }
 
   Future<void> _confirmClear(BuildContext context, AppState appState) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Clear chat?'),
-        content: const Text("This conversation with Aura will be cleared. This can't be undone."),
+        title: Text(l10n.auraClearChatDialogTitle),
+        content: Text(l10n.auraClearChatDialogBody),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(l10n.actionCancel)),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Clear', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            child: Text(l10n.auraClearConfirm, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ),
         ],
       ),
@@ -131,8 +139,10 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final appState = AppStateScope.of(context);
     final messages = appState.auraMessages;
+    final quickReplies = _quickReplyIndices.map((i) => _quickReplyPool(l10n)[i]).toList();
     // No Gemini key configured — the whole composer (quick replies, text
     // field, send button) is disabled rather than letting someone type
     // and send into a chat that can only ever answer "Not available",
@@ -152,7 +162,7 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
           children: [
             Icon(Icons.bubble_chart, color: scheme.primary),
             const SizedBox(width: 8),
-            Text('Aura AI', style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600)),
+            Text(l10n.auraChatTitle, style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600)),
           ],
         ),
         actions: [
@@ -162,7 +172,7 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
           if (messages.length > 1)
             IconButton(
               icon: const Icon(Icons.delete_outline),
-              tooltip: 'Clear chat',
+              tooltip: l10n.auraClearChatTooltip,
               onPressed: () => _confirmClear(context, appState),
             ),
           IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).maybePop()),
@@ -192,16 +202,16 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
                     height: 40,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
-                      itemCount: _quickReplies.length,
+                      itemCount: quickReplies.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 8),
                       itemBuilder: (context, index) => OutlinedButton(
-                        onPressed: _sending || !available ? null : () => _send(_quickReplies[index]),
+                        onPressed: _sending || !available ? null : () => _send(quickReplies[index]),
                         style: OutlinedButton.styleFrom(
                           side: BorderSide(color: scheme.outlineVariant),
                           foregroundColor: scheme.onSurfaceVariant,
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                         ),
-                        child: Text(_quickReplies[index]),
+                        child: Text(quickReplies[index]),
                       ),
                     ),
                   ),
@@ -223,7 +233,7 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
                             decoration: InputDecoration(
                               border: InputBorder.none,
                               filled: false,
-                              hintText: available ? 'Type a message...' : 'Currently not available for chat',
+                              hintText: available ? l10n.auraTypeMessageHint : l10n.auraNotAvailableHint,
                             ),
                             onSubmitted: _send,
                           ),

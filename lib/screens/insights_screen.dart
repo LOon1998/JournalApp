@@ -3,8 +3,12 @@ import 'dart:convert';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:showcaseview/showcaseview.dart';
 import '../data/app_state.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../models/journal_entry.dart';
+import '../services/app_tour.dart';
 import '../services/gemini_service.dart';
 import '../theme/activity_icons.dart';
 import '../theme/app_theme.dart';
@@ -27,6 +31,7 @@ class InsightsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final appState = AppStateScope.of(context);
     final entries = appState.entries;
 
@@ -68,12 +73,12 @@ class InsightsScreen extends StatelessWidget {
         const _WelcomeBackCard(),
         const SizedBox(height: 16),
         const _QuickCheckInCard(),
-        Text('Your Mood Journey',
+        Text(l10n.insightsMoodJourneyTitle,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         Text(
-          "Here's how you've been feeling this week. Remember, every feeling is valid.",
+          l10n.insightsMoodJourneySubtitle,
           textAlign: TextAlign.center,
           style: TextStyle(color: scheme.onSurfaceVariant),
         ),
@@ -86,7 +91,7 @@ class InsightsScreen extends StatelessWidget {
             final mostFrequent = FloatingCard(
               child: Column(
                 children: [
-                  Text('MOST FREQUENT',
+                  Text(l10n.insightsMostFrequent,
                       style: TextStyle(
                           fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1, color: scheme.primary)),
                   const SizedBox(height: 16),
@@ -103,10 +108,10 @@ class InsightsScreen extends StatelessWidget {
                         : const Text('✨', style: TextStyle(fontSize: 60)),
                   ),
                   const SizedBox(height: 12),
-                  Text(topMood?.label ?? 'None yet',
+                  Text(topMood == null ? l10n.insightsNoneYet : moodLabel(context, topMood!),
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
-                  Text('Recorded $topCount time${topCount == 1 ? '' : 's'} recently',
+                  Text(l10n.insightsRecordedTimes(topCount),
                       style: TextStyle(color: scheme.onSurfaceVariant)),
                 ],
               ),
@@ -162,6 +167,7 @@ class _WelcomeBackCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final appState = AppStateScope.of(context);
     return InkWell(
       borderRadius: BorderRadius.circular(24),
@@ -192,7 +198,7 @@ class _WelcomeBackCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Welcome back', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                  Text(l10n.insightsWelcomeBack, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
                   Text(appState.userName,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: scheme.onSurface)),
@@ -204,14 +210,14 @@ class _WelcomeBackCard extends StatelessWidget {
                 appState.setNotificationsEnabled(!appState.notificationsEnabled);
                 showAppSnackBar(
                   context,
-                  appState.notificationsEnabled ? 'Daily reminder turned on' : 'Daily reminder turned off',
+                  appState.notificationsEnabled ? l10n.insightsReminderOn : l10n.insightsReminderOff,
                 );
               },
               icon: Icon(
                 appState.notificationsEnabled ? Icons.notifications : Icons.notifications_none,
                 color: appState.notificationsEnabled ? scheme.primary : scheme.onSurfaceVariant,
               ),
-              tooltip: appState.notificationsEnabled ? 'Turn off daily reminder' : 'Turn on daily reminder',
+              tooltip: appState.notificationsEnabled ? l10n.insightsReminderOffTooltip : l10n.insightsReminderOnTooltip,
             ),
           ],
         ),
@@ -237,13 +243,18 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
     if (alreadyLoggedToday) return const SizedBox.shrink();
 
     final scheme = Theme.of(context).colorScheme;
-    final greeting = greetingForHour(DateTime.now().hour);
+    final l10n = AppLocalizations.of(context)!;
+    final greeting = greetingForHour(context, DateTime.now().hour);
 
     return TapRegion(
       onTapOutside: (_) {
         if (_selectedMood != null) setState(() => _selectedMood = null);
       },
-      child: Container(
+      child: Showcase(
+        key: TourKeys.checkInCard,
+        description: AppTour.checkInCardText(context),
+        targetBorderRadius: const BorderRadius.all(Radius.circular(32)),
+        child: Container(
         margin: const EdgeInsets.only(bottom: 24),
         clipBehavior: Clip.antiAlias,
         // Darker, fixed teal — not scheme.primaryContainer (a pale
@@ -255,24 +266,22 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
           children: [
             // Decorative circle-with-icon accent, echoing the "Daily
             // Reflection" mockup card's own corner graphic — purely
-            // decorative, not tappable/functional. Centered in the
-            // card's right half (not corner-clipped), with the real
-            // logo mark inside it rather than a generic icon.
+            // decorative, not tappable/functional. Fixed size (not
+            // AspectRatio stretched between top/bottom, which rendered
+            // unpredictably depending on the card's actual height) so
+            // it's always a clean, fully-visible circle in the card's
+            // upper-right. A plain journal icon, not the branded logo
+            // mark — reads as "this card is about journaling" rather
+            // than repeating the brand a third time on one screen.
             Positioned(
-              top: 20,
-              right: 24,
-              bottom: 20,
-              child: AspectRatio(
-                aspectRatio: 1,
-                child: Container(
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.14)),
-                  alignment: Alignment.center,
-                  child: FractionallySizedBox(
-                    widthFactor: 0.4,
-                    heightFactor: 0.4,
-                    child: Image.asset('assets/branding/logoIcon.png', fit: BoxFit.contain),
-                  ),
-                ),
+              top: 16,
+              right: 36,
+              child: Container(
+                width: 110,
+                height: 110,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.14)),
+                alignment: Alignment.center,
+                child: const Icon(Icons.auto_stories, size: 44, color: Colors.white),
               ),
             ),
             Padding(
@@ -292,7 +301,7 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
                   FractionallySizedBox(
                     widthFactor: 0.58,
                     alignment: Alignment.centerLeft,
-                    child: Text('Track your mood to see patterns and get insights.',
+                    child: Text(l10n.insightsTrackMoodSubtitle,
                         style: TextStyle(color: Colors.white.withValues(alpha: 0.8))),
                   ),
                   const SizedBox(height: 16),
@@ -301,7 +310,7 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
               decoration: BoxDecoration(color: scheme.surfaceContainerLowest, borderRadius: BorderRadius.circular(20)),
               child: Column(
                 children: [
-                  Text('How are you feeling right now?',
+                  Text(l10n.insightsFeelingRightNow,
                       style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
                   const SizedBox(height: 12),
                   Row(
@@ -336,7 +345,7 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
                           // checked anyway for consistency with the other
                           // entry-creating actions.
                           if (appState.hasReachedDailyCap(DateTime.now())) {
-                            showAppSnackBar(context, "Today's ${AppState.maxDailyEntries}-entry limit is reached.");
+                            showAppSnackBar(context, l10n.todayEntryLimitBanner(AppState.maxDailyEntries));
                             return;
                           }
                           // No activities from this quick picker (it's a
@@ -345,12 +354,12 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
                           appState.handOffCheckInToJournal(_selectedMood!, const []);
                           setState(() => _selectedMood = null);
                         },
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('Check in now', style: TextStyle(fontWeight: FontWeight.w700)),
-                            SizedBox(width: 8),
-                            Icon(Icons.arrow_forward, size: 18),
+                            Text(l10n.insightsCheckInNow, style: const TextStyle(fontWeight: FontWeight.w700)),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.arrow_forward, size: 18),
                           ],
                         ),
                       ),
@@ -367,7 +376,7 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
                         ),
                         onPressed: () {
                           if (appState.hasReachedDailyCap(DateTime.now())) {
-                            showAppSnackBar(context, "Today's ${AppState.maxDailyEntries}-entry limit is reached.");
+                            showAppSnackBar(context, l10n.todayEntryLimitBanner(AppState.maxDailyEntries));
                             return;
                           }
                           // Unlike "Save & Write Journal", this commits a
@@ -376,7 +385,7 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
                           appState.addQuickEntry(_selectedMood!, const []);
                           setState(() => _selectedMood = null);
                         },
-                        child: const Text('Save Mood Only', style: TextStyle(fontWeight: FontWeight.w700)),
+                        child: Text(l10n.saveMoodOnly, style: const TextStyle(fontWeight: FontWeight.w700)),
                       ),
                     ),
                   ],
@@ -389,6 +398,7 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
             ],
           ),
         ),
+      ),
     );
   }
 }
@@ -482,15 +492,16 @@ class _CorrelationsCardState extends State<_CorrelationsCard> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     return FloatingCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('What affects your mood',
+          Text(l10n.insightsWhatAffectsYourMood,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 16),
           if (widget.correlations.isEmpty)
-            Text('Log a few more entries with activities to see patterns.',
+            Text(l10n.insightsLogMoreEntries,
                 style: TextStyle(color: scheme.onSurfaceVariant))
           else
             for (final c in widget.correlations.take(3))
@@ -529,6 +540,7 @@ class _CorrelationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -545,15 +557,19 @@ class _CorrelationTile extends StatelessWidget {
             child: RichText(
               text: TextSpan(
                 style: TextStyle(color: scheme.onSurface, fontSize: 14, fontFamily: 'Quicksand'),
-                children: [
-                  const TextSpan(text: 'You feel '),
-                  TextSpan(
-                      text: mood.label, style: TextStyle(fontWeight: FontWeight.w700, color: scheme.primary)),
-                  const TextSpan(text: ' when you\n'),
-                  TextSpan(
-                      text: activity,
-                      style: TextStyle(color: scheme.onSurface, fontSize: 14, fontWeight: FontWeight.w700)),
-                ],
+                // Built by splitting the localized sentence template on
+                // sentinel markers rather than concatenating fixed
+                // "You feel " / " when you\n" spans — Chinese puts the
+                // activity clause *before* the mood ("当你{activity}时，
+                // 你感觉{mood}"), the reverse of English's order, so the
+                // two styled fragments have to be placed wherever the
+                // translation actually put them, not at fixed positions.
+                children: _correlationSpans(
+                  context,
+                  template: l10n.insightsCorrelationSentence(_moodMarker, _activityMarker),
+                  moodText: moodLabel(context, mood),
+                  activityText: activityLabel(context, activity),
+                ),
               ),
             ),
           ),
@@ -564,6 +580,35 @@ class _CorrelationTile extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static const _moodMarker = '';
+  static const _activityMarker = '';
+
+  List<TextSpan> _correlationSpans(
+    BuildContext context, {
+    required String template,
+    required String moodText,
+    required String activityText,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final positions = <(int, String, String, TextStyle)>[
+      (template.indexOf(_moodMarker), _moodMarker, moodText,
+          TextStyle(fontWeight: FontWeight.w700, color: scheme.primary)),
+      (template.indexOf(_activityMarker), _activityMarker, activityText,
+          TextStyle(color: scheme.onSurface, fontSize: 14, fontWeight: FontWeight.w700)),
+    ]..sort((a, b) => a.$1.compareTo(b.$1));
+
+    final spans = <TextSpan>[];
+    var cursor = 0;
+    for (final part in positions) {
+      final (index, marker, text, style) = part;
+      if (index > cursor) spans.add(TextSpan(text: template.substring(cursor, index)));
+      spans.add(TextSpan(text: text, style: style));
+      cursor = index + marker.length;
+    }
+    if (cursor < template.length) spans.add(TextSpan(text: template.substring(cursor)));
+    return spans;
   }
 }
 
@@ -597,16 +642,22 @@ const moodScore = {
 };
 const scoreToMood = {5: Mood.great, 4: Mood.good, 3: Mood.okay, 2: Mood.sad, 1: Mood.awful};
 
-String weekdayAbbrev(int weekday) => const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][weekday - 1];
+/// Localized weekday abbreviation for [date] — goes through intl's own
+/// locale data (via the app's current Locale) rather than a hand-rolled
+/// English word list, so this reads correctly in every supported
+/// language without maintaining a translated list here too.
+String weekdayAbbrev(BuildContext context, DateTime date) =>
+    DateFormat.E(Localizations.localeOf(context).toString()).format(date);
 
 /// The quick check-in card's greeting for the given local hour (0-23) —
 /// four tiers rather than the original three, since 9pm-4am all reading
 /// as "Good evening" stopped making sense the later it got.
-String greetingForHour(int hour) {
-  if (hour >= 5 && hour < 12) return 'Good morning';
-  if (hour >= 12 && hour < 17) return 'Good afternoon';
-  if (hour >= 17 && hour < 21) return 'Good evening';
-  return 'Good night';
+String greetingForHour(BuildContext context, int hour) {
+  final l10n = AppLocalizations.of(context)!;
+  if (hour >= 5 && hour < 12) return l10n.insightsGreetingMorning;
+  if (hour >= 12 && hour < 17) return l10n.insightsGreetingAfternoon;
+  if (hour >= 17 && hour < 21) return l10n.insightsGreetingEvening;
+  return l10n.insightsGreetingNight;
 }
 
 /// A dot's color for a given (possibly fractional/averaged) [score] —
@@ -658,21 +709,22 @@ class _WeeklyTrendCardState extends State<_WeeklyTrendCard> with TickerProviderS
   // direction between the first and last known day decides "trending"
   // vs "steady," and the week's overall average decides which flavor of
   // steady it is.
-  String _localSummary(List<double?> values) {
+  String _localSummary(BuildContext context, List<double?> values) {
+    final l10n = AppLocalizations.of(context)!;
     final known = [
       for (var i = 0; i < values.length; i++)
         if (values[i] != null) values[i]!,
     ];
-    if (known.length < 2) return 'Log a few more moods this week to start seeing a trend.';
+    if (known.length < 2) return l10n.insightsSummaryNeedMore;
 
     final delta = known.last - known.first;
     final average = known.reduce((a, b) => a + b) / known.length;
 
-    if (delta >= 0.75) return "Trending upward this week — nice momentum, keep it going.";
-    if (delta <= -0.75) return "A tougher stretch this week — be gentle with yourself.";
-    if (average >= 4) return "A genuinely great week overall — whatever you're doing, keep it up.";
-    if (average <= 2.5) return "A heavier week than usual — might be worth some extra care.";
-    return "Pretty steady this week — nothing dramatic either way.";
+    if (delta >= 0.75) return l10n.insightsSummaryTrendingUp;
+    if (delta <= -0.75) return l10n.insightsSummaryTougher;
+    if (average >= 4) return l10n.insightsSummaryGreatWeek;
+    if (average <= 2.5) return l10n.insightsSummaryHeavierWeek;
+    return l10n.insightsSummarySteady;
   }
 
   @override
@@ -705,6 +757,7 @@ class _WeeklyTrendCardState extends State<_WeeklyTrendCard> with TickerProviderS
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final last7Days = _last7Days();
     final values = _localAverages(last7Days);
 
@@ -722,7 +775,7 @@ class _WeeklyTrendCardState extends State<_WeeklyTrendCard> with TickerProviderS
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Mood Pattern',
+                  Text(l10n.insightsMoodPattern,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
                   // The same trailing-chevron cue Settings uses for every
                   // row that opens something else.
@@ -736,7 +789,7 @@ class _WeeklyTrendCardState extends State<_WeeklyTrendCard> with TickerProviderS
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(999)),
-                child: Text('Last 7 Days',
+                child: Text(l10n.insightsLast7Days,
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.primary)),
               ),
             ],
@@ -762,7 +815,7 @@ class _WeeklyTrendCardState extends State<_WeeklyTrendCard> with TickerProviderS
             // real value to plot, so an all-empty week falls back to
             // plain text instead of handing it an empty spot list.
             child: values.every((v) => v == null)
-                ? Center(child: Text('No data yet', style: TextStyle(color: scheme.outlineVariant)))
+                ? Center(child: Text(l10n.insightsNoDataYet, style: TextStyle(color: scheme.outlineVariant)))
                 : IgnorePointer(
                     child: AnimatedBuilder(
                       animation: _countUpController,
@@ -789,7 +842,7 @@ class _WeeklyTrendCardState extends State<_WeeklyTrendCard> with TickerProviderS
               children: [
                 for (var i = 0; i < last7Days.length; i++)
                   Text(
-                    weekdayAbbrev(last7Days[i].weekday),
+                    weekdayAbbrev(context, last7Days[i]),
                     // First and last day of the week bolded/colored to
                     // anchor the range at a glance — the middle days stay
                     // quiet since they're not the ones you'd scan for.
@@ -819,7 +872,7 @@ class _WeeklyTrendCardState extends State<_WeeklyTrendCard> with TickerProviderS
                       decoration: BoxDecoration(shape: BoxShape.circle, color: mood.swatch),
                     ),
                     const SizedBox(width: 5),
-                    Text(mood.label, style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+                    Text(moodLabel(context, mood), style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
                   ],
                 ),
             ],
@@ -852,14 +905,14 @@ class _WeeklyTrendCardState extends State<_WeeklyTrendCard> with TickerProviderS
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('KEY TAKEAWAY',
+                    Text(l10n.insightsKeyTakeaway,
                         style: TextStyle(
                             fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1, color: scheme.primary)),
                     const SizedBox(height: 4),
                     Text(
                       widget.entries.isEmpty
-                          ? 'Log a mood to start seeing your trend.'
-                          : _localSummary(values),
+                          ? l10n.insightsLogMoodToStart
+                          : _localSummary(context, values),
                       style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
                     ),
                   ],
@@ -992,7 +1045,7 @@ class TrendChart extends StatelessWidget {
                         final day = last7Days[touched.x.toInt()];
                         final mood = scoreToMood[touched.y.round().clamp(1, 5)]!;
                         return LineTooltipItem(
-                          '${weekdayAbbrev(day.weekday)} · ${mood.emoji} ${mood.label}',
+                          '${weekdayAbbrev(context, day)} · ${mood.emoji} ${moodLabel(context, mood)}',
                           TextStyle(color: scheme.onInverseSurface, fontWeight: FontWeight.w700, fontSize: 12),
                         );
                       }).toList(),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../services/app_lock_service.dart';
 import '../widgets/pattern_lock_pad.dart';
 
@@ -32,7 +33,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
     } else {
       setState(() {
         _errorFlash = true;
-        _error = 'Incorrect pattern — try again';
+        _error = AppLocalizations.of(context)!.appLockIncorrectPattern;
       });
     }
   }
@@ -40,6 +41,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: scheme.surface,
       body: SafeArea(
@@ -52,7 +54,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
               Text('Moodlet', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(height: 32),
               Text(
-                _error ?? 'Draw your pattern to unlock',
+                _error ?? l10n.appLockDrawToUnlock,
                 style: TextStyle(color: _error != null ? scheme.error : null, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 24),

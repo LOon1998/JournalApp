@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../data/app_state.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../models/journal_entry.dart';
+import '../theme/activity_icons.dart';
 import '../theme/app_theme.dart';
 import '../widgets/mood_emoji.dart';
 
@@ -50,6 +52,7 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: DecoratedBox(
@@ -76,7 +79,7 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
                     ),
                   ),
                 ),
-                Text('Edit Entry',
+                Text(l10n.editEntryTitle,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 16),
                 Wrap(
@@ -96,10 +99,11 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
                   controller: _textController,
                   minLines: 3,
                   maxLines: 6,
-                  decoration: const InputDecoration(hintText: 'Write your thoughts here...'),
+                  decoration: InputDecoration(hintText: l10n.journalWriteHint),
                 ),
                 const SizedBox(height: 16),
-                Text('Tags', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
+                Text(l10n.editEntryTagsLabel,
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -117,7 +121,7 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
                             color: _tags.contains(tag) ? scheme.primaryContainer.withValues(alpha: 0.6) : scheme.surfaceContainerHigh,
                             borderRadius: BorderRadius.circular(999),
                           ),
-                          child: Text(tag,
+                          child: Text(activityLabel(context, tag),
                               style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -132,7 +136,7 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Cancel'),
+                        child: Text(l10n.actionCancel),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -140,7 +144,7 @@ class _EditEntrySheetState extends State<_EditEntrySheet> {
                       child: FilledButton(
                         style: FilledButton.styleFrom(backgroundColor: scheme.primary, foregroundColor: scheme.onPrimary),
                         onPressed: _save,
-                        child: const Text('Save Changes'),
+                        child: Text(l10n.editEntrySaveChanges),
                       ),
                     ),
                   ],
@@ -177,7 +181,7 @@ class _MoodChip extends StatelessWidget {
           children: [
             MoodEmoji(mood: mood, size: 18),
             const SizedBox(width: 6),
-            Text(mood.label,
+            Text(moodLabel(context, mood),
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,

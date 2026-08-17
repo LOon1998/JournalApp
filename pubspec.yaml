@@ -82,6 +82,9 @@ dependencies:
   crypto: ^3.0.6
   lottie: ^3.5.1
   url_launcher: ^6.3.2
+  # First-run guided tour (bottom nav, Aura, check-in card, Journal's
+  # photo/voice/tag buttons, Settings) — see lib/services/app_tour.dart.
+  showcaseview: ^5.1.0
   # Settings' Language picker — English + Chinese for now, see
   # lib/l10n/app_en.arb / app_zh.arb for the actual translated strings.
   flutter_localizations:
@@ -97,6 +100,20 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+
+  # Generates the mipmap-*/ic_launcher.png files (and Play Store icon) from
+  # assets/branding/1024.png — run via `dart run flutter_launcher_icons`,
+  # not needed at app runtime, hence dev-only.
+  flutter_launcher_icons: ^0.14.3
+
+# Config for the flutter_launcher_icons dev tool above. 1024.png already has
+# its own flattened cream background baked in (not a transparent cutout), so
+# this generates the plain/legacy icon directly from it rather than trying
+# to split it into an adaptive-icon foreground+background pair.
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: false
+  image_path: "assets/branding/1024.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

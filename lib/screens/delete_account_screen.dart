@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/app_state.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../services/auth_service.dart';
 import '../widgets/floating_card.dart';
 
@@ -60,10 +61,11 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Account Settings'),
+        title: Text(l10n.deleteAccountTitle),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -79,7 +81,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                   child: Icon(Icons.heart_broken_outlined, size: 32, color: scheme.error),
                 ),
                 const SizedBox(height: 16),
-                Text('Delete Account',
+                Text(l10n.deleteAccountHeading,
                     textAlign: TextAlign.center,
                     style: textTheme.headlineSmall?.copyWith(color: scheme.primary, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
@@ -88,11 +90,9 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                   TextSpan(
                     style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 15, height: 1.5),
                     children: [
-                      const TextSpan(
-                          text: "We're sad to see you go. If you delete your account, your digital sanctuary "
-                              "will be permanently removed. "),
+                      TextSpan(text: l10n.deleteAccountBodyIntro),
                       TextSpan(
-                        text: 'This action cannot be undone.',
+                        text: l10n.deleteAccountBodyBold,
                         style: TextStyle(color: scheme.error, fontWeight: FontWeight.w700),
                       ),
                     ],
@@ -103,31 +103,31 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("What you'll lose",
+                      Text(l10n.deleteAccountWhatYoullLose,
                           style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 12),
                       _LossRow(
                         icon: Icons.menu_book_outlined,
                         color: scheme.primaryContainer,
                         onColor: scheme.onPrimaryContainer,
-                        title: 'Journals',
-                        subtitle: 'All written entries and reflections',
+                        title: l10n.deleteAccountJournalsTitle,
+                        subtitle: l10n.deleteAccountJournalsSubtitle,
                       ),
                       const SizedBox(height: 12),
                       _LossRow(
                         icon: Icons.sentiment_satisfied_alt_outlined,
                         color: scheme.secondaryContainer,
                         onColor: scheme.onSecondaryContainer,
-                        title: 'Mood History',
-                        subtitle: 'Your tracked emotional journey',
+                        title: l10n.deleteAccountMoodHistoryTitle,
+                        subtitle: l10n.deleteAccountMoodHistorySubtitle,
                       ),
                       const SizedBox(height: 12),
                       _LossRow(
                         icon: Icons.auto_awesome_outlined,
                         color: scheme.tertiaryContainer,
                         onColor: scheme.onTertiaryContainer,
-                        title: 'Personal Insights',
-                        subtitle: 'AI-generated patterns and summaries',
+                        title: l10n.deleteAccountInsightsTitle,
+                        subtitle: l10n.deleteAccountInsightsSubtitle,
                       ),
                     ],
                   ),
@@ -135,7 +135,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                 const SizedBox(height: 24),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Confirm your password to continue',
+                  child: Text(l10n.deleteAccountConfirmPassword,
                       style: textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant)),
                 ),
                 const SizedBox(height: 8),
@@ -144,14 +144,14 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                   obscureText: _obscurePassword,
                   autofillHints: const [AutofillHints.password],
                   decoration: InputDecoration(
-                    hintText: 'Enter your password',
+                    hintText: l10n.deleteAccountPasswordHint,
                     prefixIcon: const Icon(Icons.lock_outline),
                     suffixIcon: IconButton(
                       icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
                       onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                     ),
                   ),
-                  validator: (v) => (v == null || v.isEmpty) ? 'Enter your password' : null,
+                  validator: (v) => (v == null || v.isEmpty) ? l10n.deleteAccountPasswordHint : null,
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
@@ -168,7 +168,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                       children: [
                         const Icon(Icons.favorite, size: 18),
                         const SizedBox(width: 8),
-                        const Text('Keep My Account', style: TextStyle(fontWeight: FontWeight.w700)),
+                        Text(l10n.deleteAccountKeepButton, style: const TextStyle(fontWeight: FontWeight.w700)),
                       ],
                     ),
                   ),
@@ -183,7 +183,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2.2, color: scheme.error),
                         )
-                      : const Text('Delete My Account', style: TextStyle(fontWeight: FontWeight.w600)),
+                      : Text(l10n.deleteAccountDeleteButton, style: const TextStyle(fontWeight: FontWeight.w600)),
                 ),
               ],
             ),

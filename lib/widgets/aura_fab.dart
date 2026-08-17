@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:showcaseview/showcaseview.dart';
 import '../data/app_state.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../screens/aura_chat_screen.dart';
+import '../services/app_tour.dart';
 
 /// The floating "Aura" companion button that can be dragged anywhere within
 /// [bounds] and opens the Aura chat when tapped (not dragged).
@@ -147,15 +150,20 @@ class _AuraFabState extends State<AuraFab> with SingleTickerProviderStateMixin {
                     },
                     child: FadeTransition(
                       opacity: _pulseOpacity,
-                      child: Material(
-                        color: scheme.primary,
-                        shape: const CircleBorder(),
-                        elevation: 6,
-                        shadowColor: scheme.primary.withValues(alpha: 0.4),
-                        child: SizedBox(
-                          width: _size,
-                          height: _size,
-                          child: Icon(Icons.bubble_chart, color: scheme.onPrimary, size: 26),
+                      child: Showcase(
+                        key: TourKeys.auraFab,
+                        description: AppTour.auraFabText(context),
+                        targetShapeBorder: const CircleBorder(),
+                        child: Material(
+                          color: scheme.primary,
+                          shape: const CircleBorder(),
+                          elevation: 6,
+                          shadowColor: scheme.primary.withValues(alpha: 0.4),
+                          child: SizedBox(
+                            width: _size,
+                            height: _size,
+                            child: Icon(Icons.bubble_chart, color: scheme.onPrimary, size: 26),
+                          ),
                         ),
                       ),
                     ),
@@ -206,7 +214,7 @@ class _HintBubble extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 26),
                     child: Text(
-                      "Need to talk? I'm here for you.",
+                      AppLocalizations.of(context)!.auraHintBubble,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,

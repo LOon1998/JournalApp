@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../data/app_state.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../models/journal_entry.dart';
 import '../theme/app_theme.dart';
 import '../widgets/photo_tile.dart';
@@ -32,6 +33,7 @@ class _DeletedEntriesScreenState extends State<DeletedEntriesScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final appState = AppStateScope.of(context);
     final deleted = appState.deletedEntriesOn(widget.day);
     final pageCount = deleted.isEmpty ? 0 : (deleted.length / _entriesPerPage).ceil();
@@ -46,7 +48,7 @@ class _DeletedEntriesScreenState extends State<DeletedEntriesScreen> {
         title: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Deleted Entries',
+            Text(l10n.deletedEntriesTitle,
                 style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600, fontSize: 20)),
             Text(DateFormat.yMMMMd().format(widget.day),
                 style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w500)),
@@ -57,7 +59,7 @@ class _DeletedEntriesScreenState extends State<DeletedEntriesScreen> {
           TextButton.icon(
             onPressed: deleted.isEmpty ? null : () => _confirmClearAll(context, appState, deleted.length),
             icon: Icon(Icons.delete_sweep, size: 18, color: deleted.isEmpty ? scheme.outlineVariant : scheme.error),
-            label: Text('Clear All',
+            label: Text(l10n.deletedEntriesClearAll,
                 style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -70,10 +72,10 @@ class _DeletedEntriesScreenState extends State<DeletedEntriesScreen> {
           : ListView(
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
               children: [
-                Text('${deleted.length} of ${AppState.maxDeletedEntriesPerDay} deleted slots',
+                Text(l10n.deletedEntriesSlotsUsed(deleted.length, AppState.maxDeletedEntriesPerDay),
                     style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
                 const SizedBox(height: 2),
-                Text('Deleted entries are permanently removed after ${AppState.deletedEntryExpiry.inDays} days.',
+                Text(l10n.deletedEntriesExpiryNote(AppState.deletedEntryExpiry.inDays),
                     style: TextStyle(fontSize: 11, color: scheme.outline)),
                 const SizedBox(height: 12),
                 for (final entry in pageEntries)
@@ -94,7 +96,7 @@ class _DeletedEntriesScreenState extends State<DeletedEntriesScreen> {
                           onPressed: page > 0 ? () => setState(() => _currentPageIndex = page - 1) : null,
                           icon: const Icon(Icons.chevron_left),
                           visualDensity: VisualDensity.compact,
-                          tooltip: 'Previous page',
+                          tooltip: l10n.deletedEntriesPrevPage,
                         ),
                       ),
                       for (var i = 0; i < pageCount; i++)
@@ -119,7 +121,7 @@ class _DeletedEntriesScreenState extends State<DeletedEntriesScreen> {
                               page < pageCount - 1 ? () => setState(() => _currentPageIndex = page + 1) : null,
                           icon: const Icon(Icons.chevron_right),
                           visualDensity: VisualDensity.compact,
-                          tooltip: 'Next page',
+                          tooltip: l10n.deletedEntriesNextPage,
                         ),
                       ),
                     ],
@@ -130,17 +132,17 @@ class _DeletedEntriesScreenState extends State<DeletedEntriesScreen> {
   }
 
   void _confirmClearAll(BuildContext context, AppState appState, int count) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Permanently delete all?'),
-        content: Text(
-            'This will permanently delete all $count deleted ${count == 1 ? 'entry' : 'entries'} from ${DateFormat.yMMMMd().format(widget.day)}. This can\'t be undone.'),
+        title: Text(l10n.deletedEntriesConfirmClearAllTitle),
+        content: Text(l10n.deletedEntriesConfirmClearAllBody(count, DateFormat.yMMMMd().format(widget.day))),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(l10n.actionCancel)),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Delete All', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            child: Text(l10n.deletedEntriesDeleteAll, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ),
         ],
       ),
@@ -158,6 +160,7 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -172,11 +175,11 @@ class _EmptyState extends StatelessWidget {
               child: Icon(Icons.delete_sweep, size: 48, color: scheme.outlineVariant),
             ),
             const SizedBox(height: 16),
-            Text('No Deleted Entries',
+            Text(l10n.deletedEntriesEmptyTitle,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Text(
-              'Nothing deleted from ${DateFormat.yMMMMd().format(day)}. Entries you delete show up here so you can restore them or remove them for good.',
+              l10n.deletedEntriesEmptyBody(DateFormat.yMMMMd().format(day)),
               textAlign: TextAlign.center,
               style: TextStyle(color: scheme.onSurfaceVariant),
             ),
@@ -194,6 +197,7 @@ class _DeletedEntryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: Material(
@@ -250,7 +254,7 @@ class _DeletedEntryCard extends StatelessWidget {
                                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                                         decoration: BoxDecoration(
                                             color: scheme.errorContainer, borderRadius: BorderRadius.circular(999)),
-                                        child: Text('Deleted',
+                                        child: Text(l10n.deletedEntriesBadge,
                                             style: TextStyle(
                                                 fontSize: 11, fontWeight: FontWeight.w600, color: scheme.error)),
                                       ),
@@ -309,8 +313,8 @@ class _DeletedEntryCard extends StatelessWidget {
                                 ),
                                 onPressed: () => _restore(context),
                                 icon: const Icon(Icons.restore, size: 18),
-                                label:
-                                    const Text('Restore', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                label: Text(l10n.deletedEntriesRestore,
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -324,8 +328,8 @@ class _DeletedEntryCard extends StatelessWidget {
                                 ),
                                 onPressed: () => _confirmDeleteForever(context),
                                 icon: const Icon(Icons.delete_forever, size: 18),
-                                label: const Text('Delete Forever',
-                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                label: Text(l10n.deletedEntriesDeleteForever,
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                               ),
                             ),
                           ],
@@ -344,15 +348,16 @@ class _DeletedEntryCard extends StatelessWidget {
 
   void _restore(BuildContext context) {
     final appState = AppStateScope.of(context);
+    final l10n = AppLocalizations.of(context)!;
     if (appState.hasReachedDailyCap(entry.dateTime)) {
       showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text("Can't restore"),
-          content: Text(
-              "${DateFormat.yMMMMd().format(entry.dateTime)} already has ${AppState.maxDailyEntries} entries — delete one from that day before restoring this."),
+          title: Text(l10n.deletedEntriesCantRestoreTitle),
+          content: Text(l10n.deletedEntriesCantRestoreBody(
+              DateFormat.yMMMMd().format(entry.dateTime), AppState.maxDailyEntries)),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK')),
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(l10n.actionOk)),
           ],
         ),
       );
@@ -362,16 +367,17 @@ class _DeletedEntryCard extends StatelessWidget {
   }
 
   void _confirmDeleteForever(BuildContext context) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete forever?'),
-        content: Text('"${entry.title}" will be permanently removed. This can\'t be undone.'),
+        title: Text(l10n.deletedEntriesDeleteForeverConfirmTitle),
+        content: Text(l10n.deletedEntriesDeleteForeverConfirmBody(entry.title)),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(l10n.actionCancel)),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            child: Text(l10n.actionDelete, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ),
         ],
       ),

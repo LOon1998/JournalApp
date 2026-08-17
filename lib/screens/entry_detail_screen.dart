@@ -7,8 +7,10 @@ import 'package:flutter/services.dart' show MaxLengthEnforcement;
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../data/app_state.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../models/journal_entry.dart';
 import '../services/media_capture.dart';
+import '../theme/activity_icons.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_snackbar.dart';
 import '../widgets/mood_emoji.dart';
@@ -112,7 +114,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
     // Leaving edit mode retires the title editor too, if it was left
     // mid-edit — save it rather than silently abandoning it.
     if (_editingTitle) _saveTitle(appState, entry);
-    showAppSnackBar(context, 'Entry saved');
+    showAppSnackBar(context, AppLocalizations.of(context)!.entrySavedSnackbar);
     setState(() {
       _editingText = false;
       _photosSnapshot = null;
@@ -192,7 +194,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
     // cap is hit, so this is only reachable if something else ever calls
     // _addPhoto directly.
     if (entry.photos.length >= JournalEntry.maxPhotos) {
-      showAppSnackBar(context, 'Up to ${JournalEntry.maxPhotos} photos per entry');
+      showAppSnackBar(context, AppLocalizations.of(context)!.journalPhotoCap(JournalEntry.maxPhotos));
       return;
     }
     final source = await showPhotoSourceSheet(context);
@@ -217,7 +219,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
             for (final m in Mood.values)
               ListTile(
                 leading: MoodEmoji(mood: m, size: 22),
-                title: Text(m.label),
+                title: Text(moodLabel(context, m)),
                 onTap: () => Navigator.pop(context, m),
               ),
           ],
@@ -232,7 +234,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
   String _relativeDate(DateTime dt) {
     final now = DateTime.now();
     final isToday = dt.year == now.year && dt.month == now.month && dt.day == now.day;
-    final label = isToday ? 'Today' : DateFormat.yMMMd().format(dt);
+    final label = isToday ? AppLocalizations.of(context)!.entryToday : DateFormat.yMMMd().format(dt);
     return '$label, ${DateFormat('h:mm a').format(dt)}';
   }
 
@@ -267,7 +269,9 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
   void _shareEntryAsText(JournalEntry entry) {
     final buffer = StringBuffer('${entry.mood.emoji} ${entry.title}\n${_relativeDate(entry.dateTime)}');
     if (entry.text.isNotEmpty) buffer.write('\n\n${entry.text}');
-    if (entry.labels.isNotEmpty) buffer.write('\n\nTags: ${entry.labels.join(', ')}');
+    if (entry.labels.isNotEmpty) {
+      buffer.write('\n\n${AppLocalizations.of(context)!.entryShareTagsPrefix}${entry.labels.join(', ')}');
+    }
     Share.share(buffer.toString(), subject: entry.title);
   }
 
@@ -286,22 +290,23 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
   // button — restoring shouldn't be able to push a day past its
   // maxDailyEntries limit any more than creating a new entry can.
   void _restore(BuildContext context, AppState appState, JournalEntry entry) {
+    final l10n = AppLocalizations.of(context)!;
     if (appState.hasReachedDailyCap(entry.dateTime)) {
       showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text("Can't restore"),
-          content: Text(
-              "${DateFormat.yMMMMd().format(entry.dateTime)} already has ${AppState.maxDailyEntries} entries — delete one from that day before restoring this."),
+          title: Text(l10n.deletedEntriesCantRestoreTitle),
+          content: Text(l10n.deletedEntriesCantRestoreBody(
+              DateFormat.yMMMMd().format(entry.dateTime), AppState.maxDailyEntries)),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK')),
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(l10n.actionOk)),
           ],
         ),
       );
       return;
     }
     appState.restoreEntry(entry.id);
-    showAppSnackBar(context, 'Entry restored');
+    showAppSnackBar(context, l10n.entryRestoredSnackbar);
     Navigator.of(context).pop();
   }
 
@@ -309,16 +314,17 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
   // Forever" button — this just offers the identical action without
   // making the user go back to History first.
   Future<void> _confirmDeleteForever(BuildContext context, AppState appState, JournalEntry entry) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete forever?'),
-        content: Text('"${entry.title}" will be permanently removed. This can\'t be undone.'),
+        title: Text(l10n.deletedEntriesDeleteForeverConfirmTitle),
+        content: Text(l10n.deletedEntriesDeleteForeverConfirmBody(entry.title)),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(l10n.actionCancel)),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            child: Text(l10n.actionDelete, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ),
         ],
       ),
@@ -343,6 +349,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
       builder: (context) {
         final entry = _findEntry(appState);
         final scheme = Theme.of(context).colorScheme;
+        final l10n = AppLocalizations.of(context)!;
         final canEdit = entry != null && !entry.isDeleted;
         // If a Writing Theme was picked while composing this entry, its
         // cards stay tinted that color instead of reverting to plain
@@ -371,7 +378,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
           return Scaffold(
             appBar: AppBar(leading: BackButton(color: scheme.onSurfaceVariant)),
             body: Center(
-              child: Text('This entry no longer exists.', style: TextStyle(color: scheme.onSurfaceVariant)),
+              child: Text(l10n.entryNoLongerExists, style: TextStyle(color: scheme.onSurfaceVariant)),
             ),
           );
         }
@@ -392,11 +399,11 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                   itemBuilder: (context) => [
                     PopupMenuItem(
                       onTap: () => _shareEntry(entry),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          Icon(Icons.share_outlined, size: 18),
-                          SizedBox(width: 12),
-                          Text('Share'),
+                          const Icon(Icons.share_outlined, size: 18),
+                          const SizedBox(width: 12),
+                          Text(l10n.actionShare),
                         ],
                       ),
                     ),
@@ -437,7 +444,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                         // The mood's own label, not entry.title — title is
                         // now an independently editable headline (below)
                         // and may not have anything to do with the mood.
-                        Text('Feeling ${entry.mood.label}',
+                        Text(l10n.entryFeelingMood(moodLabel(context, entry.mood)),
                             style: TextStyle(fontWeight: FontWeight.w700, color: entry.mood.onSwatch)),
                         // Same edit-affordance pattern as the title's own
                         // pencil — only shown in edit mode, so it's clear
@@ -487,10 +494,10 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                                           .textTheme
                                           .titleLarge
                                           ?.copyWith(fontWeight: FontWeight.w600, color: scheme.onSurface),
-                                      decoration: const InputDecoration(
+                                      decoration: InputDecoration(
                                         isDense: true,
                                         border: InputBorder.none,
-                                        hintText: 'Title your journal...',
+                                        hintText: l10n.journalTitleHint,
                                         counterText: '',
                                       ),
                                       onSubmitted: (_) => _saveTitle(appState, entry),
@@ -536,7 +543,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
               ),
               if (_editingText) ...[
                 const SizedBox(height: 16),
-                Text('Writing Theme',
+                Text(l10n.journalWritingTheme,
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
                 const SizedBox(height: 8),
                 Row(
@@ -591,7 +598,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                           ),
                           onPressed: () => _recordVoiceNote(context, appState, entry),
                           icon: const Icon(Icons.mic, size: 18),
-                          label: const Text('Add Voice Note'),
+                          label: Text(l10n.entryAddVoiceNote),
                         ),
                 ),
                 const SizedBox(height: 16),
@@ -614,7 +621,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                       children: [
                         for (final tag in entry.labels)
                           _RemovableTagChip(
-                            label: tag,
+                            label: activityLabel(context, tag),
                             onRemove: () => appState.removeLabel(entry.id, tag),
                             // Same edit-mode gating as the title, photos,
                             // and voice note — _editingText can only be
@@ -629,7 +636,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                           _AddTagButton(
                             onAdd: (tag) {
                               if (entry.labels.length >= _maxTags) {
-                                showAppSnackBar(context, 'Up to $_maxTags tags per entry');
+                                showAppSnackBar(context, l10n.entryTagCap(_maxTags));
                                 return;
                               }
                               appState.addLabel(entry.id, tag);
@@ -654,7 +661,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                             style: TextStyle(fontSize: 16, height: 1.6, color: scheme.onSurface),
                             decoration: InputDecoration(
                               border: InputBorder.none,
-                              hintText: 'Write your thoughts here...',
+                              hintText: l10n.journalWriteHint,
                               counterText: '',
                               // Otherwise this falls back to the app-wide
                               // input fill (a flat grey), which ignores
@@ -665,7 +672,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                             ),
                           )
                         : Text(
-                            entry.text.isEmpty ? "No reflection yet — start writing when you're ready." : entry.text,
+                            entry.text.isEmpty ? l10n.entryNoReflectionYet : entry.text,
                             style: TextStyle(
                               fontSize: 16,
                               height: 1.6,
@@ -714,8 +721,8 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                         // gating as the "Add More" tile and delete
                         // buttons below.
                         !_editingText || entry.photos.isEmpty
-                            ? 'Moments Captured'
-                            : 'Moments Captured · ${entry.photos.length}/${JournalEntry.maxPhotos}',
+                            ? l10n.entryMomentsCaptured
+                            : l10n.entryMomentsCapturedCount(entry.photos.length, JournalEntry.maxPhotos),
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant),
                       ),
                       const SizedBox(height: 8),
@@ -744,7 +751,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                             ),
                           if (_editingText && entry.photos.length < JournalEntry.maxPhotos)
                             AddPhotoTile(
-                              label: entry.photos.isEmpty ? 'Add Photo' : 'Add More',
+                              label: entry.photos.isEmpty ? l10n.journalAddPhoto : l10n.journalAddMorePhoto,
                               onTap: () => _addPhoto(context, appState, entry),
                               size: double.infinity,
                             ),
@@ -768,7 +775,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                         ),
                         onPressed: () => _restore(context, appState, entry),
                         icon: const Icon(Icons.restore, size: 18),
-                        label: const Text('Restore'),
+                        label: Text(l10n.deletedEntriesRestore),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -782,7 +789,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                         ),
                         onPressed: () => _confirmDeleteForever(context, appState, entry),
                         icon: const Icon(Icons.delete_forever, size: 18),
-                        label: const Text('Delete Forever'),
+                        label: Text(l10n.deletedEntriesDeleteForever),
                       ),
                     ),
                   ],
@@ -805,7 +812,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                           mini: true,
                           backgroundColor: scheme.surfaceContainerHigh,
                           foregroundColor: scheme.onSurfaceVariant,
-                          tooltip: 'Cancel',
+                          tooltip: l10n.actionCancel,
                           onPressed: () => _cancelEditingText(appState, entry),
                           child: const Icon(Icons.close),
                         ),
@@ -814,7 +821,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                           heroTag: 'entry-save-${entry.id}',
                           backgroundColor: scheme.primary,
                           foregroundColor: scheme.onPrimary,
-                          tooltip: 'Save',
+                          tooltip: l10n.actionSave,
                           onPressed: () => _saveText(context, appState, entry),
                           child: const Icon(Icons.save),
                         ),
@@ -824,7 +831,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                       heroTag: 'entry-edit-${entry.id}',
                       backgroundColor: scheme.primary,
                       foregroundColor: scheme.onPrimary,
-                      tooltip: 'Edit',
+                      tooltip: l10n.entryEditTooltip,
                       onPressed: () => _startEditingText(entry),
                       child: const Icon(Icons.edit),
                     ),
@@ -947,10 +954,10 @@ class _AddTagButtonState extends State<_AddTagButton> {
                 maxLength: _maxTagLength,
                 maxLengthEnforcement: MaxLengthEnforcement.enforced,
                 style: const TextStyle(fontSize: 13),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   isDense: true,
-                  hintText: 'New tag',
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  hintText: AppLocalizations.of(context)!.entryNewTagHint,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   counterText: '',
                 ),
                 onSubmitted: (_) => _confirm(),

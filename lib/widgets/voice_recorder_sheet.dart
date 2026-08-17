@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import '../l10n/generated/app_localizations.dart';
 import '../services/file_bytes.dart';
 
 /// Shows a modal recording sheet (mic auto-starts on open) and returns
@@ -63,7 +64,7 @@ class _VoiceRecorderSheetState extends State<_VoiceRecorderSheet> {
       final granted = await _recorder.hasPermission();
       if (!mounted) return;
       if (!granted) {
-        setState(() => _error = "Microphone permission wasn't granted.");
+        setState(() => _error = AppLocalizations.of(context)!.voiceRecorderMicPermissionDenied);
         return;
       }
       // path_provider has no real web implementation — calling
@@ -98,7 +99,7 @@ class _VoiceRecorderSheetState extends State<_VoiceRecorderSheet> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = "Couldn't start recording: $e");
+      setState(() => _error = AppLocalizations.of(context)!.voiceRecorderStartError('$e'));
     }
   }
 
@@ -116,7 +117,7 @@ class _VoiceRecorderSheetState extends State<_VoiceRecorderSheet> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = "Couldn't save the recording: $e";
+        _error = AppLocalizations.of(context)!.voiceRecorderSaveError('$e');
       });
     }
   }
@@ -137,6 +138,7 @@ class _VoiceRecorderSheetState extends State<_VoiceRecorderSheet> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -148,7 +150,7 @@ class _VoiceRecorderSheetState extends State<_VoiceRecorderSheet> {
                   const SizedBox(height: 12),
                   Text(_error!, textAlign: TextAlign.center),
                   const SizedBox(height: 16),
-                  TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
+                  TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(l10n.actionClose)),
                 ]
               : [
                   Container(
@@ -161,17 +163,17 @@ class _VoiceRecorderSheetState extends State<_VoiceRecorderSheet> {
                   const SizedBox(height: 16),
                   Text(_formatDuration(_elapsed), style: Theme.of(context).textTheme.headlineMedium),
                   const SizedBox(height: 4),
-                  Text('Max 60 seconds', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                  Text(l10n.voiceRecorderMaxDuration, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      OutlinedButton(onPressed: _busy ? null : _cancel, child: const Text('Cancel')),
+                      OutlinedButton(onPressed: _busy ? null : _cancel, child: Text(l10n.actionCancel)),
                       const SizedBox(width: 16),
                       FilledButton.icon(
                         onPressed: _busy ? null : _stopAndSave,
                         icon: const Icon(Icons.stop),
-                        label: const Text('Stop & Save'),
+                        label: Text(l10n.voiceRecorderStopSave),
                       ),
                     ],
                   ),

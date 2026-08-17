@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import '../l10n/generated/app_localizations.dart';
 
 /// Small inline play/pause control with elapsed/total time for a
 /// base64-encoded voice note, played straight from memory via
@@ -100,7 +101,9 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
           ),
           const SizedBox(width: 8),
           Text(
-            _total == Duration.zero ? 'Voice note' : '${_format(_position)} / ${_format(_total)}',
+            _total == Duration.zero
+                ? AppLocalizations.of(context)!.voiceNoteLabel
+                : '${_format(_position)} / ${_format(_total)}',
             style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600),
           ),
           if (widget.onDelete != null) ...[

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../services/app_lock_service.dart';
 import '../widgets/app_snackbar.dart';
 import '../widgets/pattern_lock_pad.dart';
@@ -17,18 +18,24 @@ class PatternLockSetupScreen extends StatefulWidget {
 
 enum _Stage { draw, confirm }
 
+/// Kept as an enum (rather than storing the literal localized String
+/// directly) since the instruction is set from callbacks that don't have
+/// a BuildContext handy — build() maps this to the right AppLocalizations
+/// getter instead.
+enum _Instruction { drawNew, connectDots, confirmAgain, didntMatch }
+
 class _PatternLockSetupScreenState extends State<PatternLockSetupScreen> {
   late final _lockService = AppLockService(widget.uid);
   _Stage _stage = _Stage.draw;
   List<int>? _firstPattern;
   bool _errorFlash = false;
-  String _instruction = 'Draw a new pattern';
+  _Instruction _instruction = _Instruction.drawNew;
 
   void _handleComplete(List<int> pattern) {
     if (pattern.isEmpty) {
       setState(() {
         _errorFlash = true;
-        _instruction = 'Connect at least 2 dots — try again';
+        _instruction = _Instruction.connectDots;
       });
       return;
     }
@@ -38,7 +45,7 @@ class _PatternLockSetupScreenState extends State<PatternLockSetupScreen> {
         _firstPattern = pattern;
         _stage = _Stage.confirm;
         _errorFlash = false;
-        _instruction = 'Draw the pattern again to confirm';
+        _instruction = _Instruction.confirmAgain;
       });
       return;
     }
@@ -51,7 +58,7 @@ class _PatternLockSetupScreenState extends State<PatternLockSetupScreen> {
         _stage = _Stage.draw;
         _firstPattern = null;
         _errorFlash = true;
-        _instruction = "Patterns didn't match — draw a new pattern";
+        _instruction = _Instruction.didntMatch;
       });
     }
   }
@@ -67,15 +74,22 @@ class _PatternLockSetupScreenState extends State<PatternLockSetupScreen> {
   Future<void> _save() async {
     await _lockService.setPattern(_firstPattern!);
     if (!mounted) return;
-    showAppSnackBar(context, 'Pattern Lock set');
+    showAppSnackBar(context, AppLocalizations.of(context)!.patternLockSetSnackbar);
     Navigator.of(context).pop(true);
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final instructionText = switch (_instruction) {
+      _Instruction.drawNew => l10n.patternLockDrawNew,
+      _Instruction.connectDots => l10n.patternLockConnectDots,
+      _Instruction.confirmAgain => l10n.patternLockDrawAgainConfirm,
+      _Instruction.didntMatch => l10n.patternLockDidntMatch,
+    };
     return Scaffold(
-      appBar: AppBar(title: const Text('Set Pattern Lock')),
+      appBar: AppBar(title: Text(l10n.patternLockSetupTitle)),
       body: SafeArea(
         child: Center(
           child: Column(
@@ -84,7 +98,7 @@ class _PatternLockSetupScreenState extends State<PatternLockSetupScreen> {
               Icon(Icons.pattern, size: 40, color: scheme.primary),
               const SizedBox(height: 16),
               Text(
-                _instruction,
+                instructionText,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: _errorFlash ? scheme.error : null,
                       fontWeight: FontWeight.w600,
@@ -106,9 +120,9 @@ class _PatternLockSetupScreenState extends State<PatternLockSetupScreen> {
                     _stage = _Stage.draw;
                     _firstPattern = null;
                     _errorFlash = false;
-                    _instruction = 'Draw a new pattern';
+                    _instruction = _Instruction.drawNew;
                   }),
-                  child: const Text('Start Over'),
+                  child: Text(l10n.actionStartOver),
                 ),
             ],
           ),

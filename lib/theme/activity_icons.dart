@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/generated/app_localizations.dart';
 
 /// Shared icon vocabulary for activities/tags — keyed by lowercase concept
 /// name. Used two ways: (1) directly, for known preset options like
@@ -47,3 +48,35 @@ IconData? activityIconFor(String label) => activityIconVocabulary[label.toLowerC
 /// meaning, just marks that this is a tag, so nothing ever renders with a
 /// conspicuously empty spot where an icon should be.
 const fallbackActivityIcon = Icons.local_offer_outlined;
+
+/// Case-insensitive display-label lookup for the fixed preset activity/tag
+/// words (Today's activity chips, Edit Entry's tag chips, ...) — maps back
+/// to the matching AppLocalizations getter so the catalog shows translated
+/// text while the *stored* value the app persists and compares against
+/// (JournalEntry.tags, AppState) stays the original English word. A
+/// custom, user-typed tag that doesn't match anything here is returned
+/// as-is — there's no way to translate free-form text a person wrote, and
+/// it isn't this app's place to try.
+String activityLabel(BuildContext context, String raw) {
+  final l10n = AppLocalizations.of(context)!;
+  switch (raw.toLowerCase()) {
+    case 'work':
+      return l10n.activityWork;
+    case 'family':
+      return l10n.activityFamily;
+    case 'friends':
+      return l10n.activityFriends;
+    case 'hobby':
+      return l10n.activityHobby;
+    case 'exercise':
+      return l10n.activityExercise;
+    case 'sleep':
+      return l10n.activitySleep;
+    case 'health':
+      return l10n.activityHealth;
+    case 'other':
+      return l10n.activityOther;
+    default:
+      return raw;
+  }
+}

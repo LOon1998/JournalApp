@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../services/auth_service.dart';
 import '../services/media_capture.dart';
 import '../theme/app_theme.dart';
@@ -107,9 +108,10 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> _forgotPassword() async {
+    final l10n = AppLocalizations.of(context)!;
     final email = _emailController.text.trim();
     if (email.isEmpty) {
-      setState(() => _error = 'Enter your email above first, then tap "Forgot password?" again.');
+      setState(() => _error = l10n.authForgotPasswordNeedEmail);
       return;
     }
     try {
@@ -117,7 +119,7 @@ class _AuthScreenState extends State<AuthScreen> {
       if (!mounted) return;
       showAppSnackBar(
         context,
-        "Password reset email sent to $email — check your spam/junk folder if it doesn't show up.",
+        l10n.authPasswordResetSent(email),
         duration: const Duration(seconds: 4),
       );
     } on AuthException catch (e) {
@@ -142,6 +144,7 @@ class _AuthScreenState extends State<AuthScreen> {
       child: Builder(builder: (context) {
         final scheme = Theme.of(context).colorScheme;
         final textTheme = Theme.of(context).textTheme;
+        final l10n = AppLocalizations.of(context)!;
 
         return Scaffold(
           body: Stack(
@@ -179,15 +182,13 @@ class _AuthScreenState extends State<AuthScreen> {
                       // still shows "Create Account", which is real,
                       // distinct information.
                       if (_isSignUp)
-                        Text('Create Account',
+                        Text(l10n.authCreateAccount,
                             textAlign: TextAlign.center,
                             style:
                                 textTheme.headlineMedium?.copyWith(color: scheme.primary, fontWeight: FontWeight.w700)),
                       const SizedBox(height: 4),
                       Text(
-                        _isSignUp
-                            ? 'Join Moodlet and start your journaling journey.'
-                            : 'Sign in to continue your journey of mindfulness.',
+                        _isSignUp ? l10n.authJoinSubtitle : l10n.authSignInSubtitle,
                         textAlign: TextAlign.center,
                         style: TextStyle(color: scheme.onSurfaceVariant),
                       ),
@@ -212,7 +213,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                           backgroundImage:
                                               _avatarBase64 != null ? MemoryImage(base64Decode(_avatarBase64!)) : null,
                                           child: _avatarBase64 == null
-                                              ? Icon(Icons.person, size: 44, color: scheme.onPrimaryContainer)
+                                              ? Icon(Icons.self_improvement, size: 44, color: scheme.onPrimaryContainer)
                                               : null,
                                         ),
                                         Positioned(
@@ -236,7 +237,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                 Center(
                                   child: TextButton(
                                     onPressed: _submitting ? null : _pickAvatar,
-                                    child: Text(_avatarBase64 == null ? 'Add Photo' : 'Change Photo'),
+                                    child: Text(_avatarBase64 == null ? l10n.authAddPhoto : l10n.authChangePhoto),
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -245,12 +246,12 @@ class _AuthScreenState extends State<AuthScreen> {
                                 controller: _emailController,
                                 keyboardType: TextInputType.emailAddress,
                                 autofillHints: const [AutofillHints.email],
-                                decoration:
-                                    const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.mail_outline)),
+                                decoration: InputDecoration(
+                                    labelText: l10n.authEmailLabel, prefixIcon: const Icon(Icons.mail_outline)),
                                 validator: (v) {
                                   final value = v?.trim() ?? '';
-                                  if (value.isEmpty) return 'Enter your email';
-                                  if (!value.contains('@') || !value.contains('.')) return 'Enter a valid email';
+                                  if (value.isEmpty) return l10n.authEmailEmptyValidator;
+                                  if (!value.contains('@') || !value.contains('.')) return l10n.authEmailInvalidValidator;
                                   return null;
                                 },
                               ),
@@ -260,20 +261,20 @@ class _AuthScreenState extends State<AuthScreen> {
                                 obscureText: _obscurePassword,
                                 autofillHints: [_isSignUp ? AutofillHints.newPassword : AutofillHints.password],
                                 decoration: InputDecoration(
-                                  labelText: 'Password',
+                                  labelText: l10n.authPasswordLabel,
                                   prefixIcon: const Icon(Icons.lock_outline),
                                   suffixIcon: IconButton(
                                     icon: Icon(
                                         _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
                                     onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                                   ),
-                                  helperText: _isSignUp ? 'Must be at least 6 characters.' : null,
+                                  helperText: _isSignUp ? l10n.authPasswordHelper : null,
                                 ),
                                 onFieldSubmitted: (_) => _submit(),
                                 validator: (v) {
                                   final value = v ?? '';
-                                  if (value.isEmpty) return 'Enter your password';
-                                  if (_isSignUp && value.length < 6) return 'At least 6 characters';
+                                  if (value.isEmpty) return l10n.authPasswordEmptyValidator;
+                                  if (_isSignUp && value.length < 6) return l10n.authPasswordLengthValidator;
                                   return null;
                                 },
                               ),
@@ -282,7 +283,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                   alignment: Alignment.centerRight,
                                   child: TextButton(
                                     onPressed: _submitting ? null : _forgotPassword,
-                                    child: const Text('Forgot password?'),
+                                    child: Text(l10n.authForgotPassword),
                                   ),
                                 )
                               else
@@ -308,7 +309,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                     : Row(
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
-                                          Text(_isSignUp ? 'Create Account' : 'Sign In',
+                                          Text(_isSignUp ? l10n.authCreateAccount : l10n.authSignIn,
                                               style: const TextStyle(fontWeight: FontWeight.w700)),
                                           if (!_isSignUp) ...[
                                             const SizedBox(width: 6),
@@ -325,7 +326,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(_isSignUp ? 'Already have an account?' : "Don't have an account?",
+                          Text(_isSignUp ? l10n.authAlreadyHaveAccount : l10n.authDontHaveAccount,
                               style: TextStyle(color: scheme.onSurfaceVariant)),
                           TextButton(
                             onPressed: _submitting
@@ -334,7 +335,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                       _isSignUp = !_isSignUp;
                                       _error = null;
                                     }),
-                            child: Text(_isSignUp ? 'Sign In' : 'Sign Up'),
+                            child: Text(_isSignUp ? l10n.authSignIn : l10n.authSignUp),
                           ),
                         ],
                       ),
@@ -343,7 +344,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       TextButton.icon(
                         onPressed: _submitting ? null : _quickTestSignIn,
                         icon: Icon(Icons.science_outlined, size: 16, color: scheme.outline),
-                        label: Text('Quick Test Sign In', style: TextStyle(color: scheme.outline, fontSize: 12)),
+                        label: Text(l10n.authQuickTestSignIn, style: TextStyle(color: scheme.outline, fontSize: 12)),
                       ),
                     ],
                   ),

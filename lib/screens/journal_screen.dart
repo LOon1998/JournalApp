@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show MaxLengthEnforcement;
 import 'package:intl/intl.dart';
+import 'package:showcaseview/showcaseview.dart';
 import '../data/app_state.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../models/journal_entry.dart';
+import '../services/app_tour.dart';
 import '../services/gemini_service.dart';
 import '../services/media_capture.dart';
 import '../services/text_measure.dart';
+import '../theme/activity_icons.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_snackbar.dart';
 import '../widgets/entries_history_row.dart';
@@ -233,10 +237,10 @@ class _JournalScreenState extends State<JournalScreen> {
 
   void _complete() {
     final appState = AppStateScope.of(context);
+    final l10n = AppLocalizations.of(context)!;
     final today = DateTime.now();
     if (appState.hasReachedDailyCap(today)) {
-      showAppSnackBar(
-          context, "Today's ${AppState.maxDailyEntries}-entry limit is reached — delete one to add another.");
+      showAppSnackBar(context, l10n.todayEntryLimitSnackbar(AppState.maxDailyEntries));
       return;
     }
     // No "you must write something" gate — a check-in's mood (and
@@ -260,7 +264,7 @@ class _JournalScreenState extends State<JournalScreen> {
         themeName: _themeName,
       ),
     );
-    showAppSnackBar(context, 'Entry saved to your journal \u{1F4D6}');
+    showAppSnackBar(context, l10n.journalEntrySavedSnackbar);
     setState(() {
       _textController.clear();
       _titleController.clear();
@@ -285,7 +289,7 @@ class _JournalScreenState extends State<JournalScreen> {
     // cap is hit, so this is only reachable if something else ever calls
     // _addPhoto directly.
     if (_photos.length >= JournalEntry.maxPhotos) {
-      showAppSnackBar(context, 'Up to ${JournalEntry.maxPhotos} photos per entry');
+      showAppSnackBar(context, AppLocalizations.of(context)!.journalPhotoCap(JournalEntry.maxPhotos));
       return;
     }
     final source = await showPhotoSourceSheet(context);
@@ -304,7 +308,7 @@ class _JournalScreenState extends State<JournalScreen> {
     if (value.isEmpty) return;
     final customCount = _tags.where((t) => !_tagOptions.contains(t)).length;
     if (customCount >= _maxCustomTags) {
-      showAppSnackBar(context, 'Up to $_maxCustomTags custom tags');
+      showAppSnackBar(context, AppLocalizations.of(context)!.journalCustomTagCap(_maxCustomTags));
       return;
     }
     setState(() {
@@ -335,6 +339,7 @@ class _JournalScreenState extends State<JournalScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final appState = AppStateScope.of(context);
     final today = DateTime.now();
     final todaysEntries = appState.entriesOn(today);
@@ -346,7 +351,7 @@ class _JournalScreenState extends State<JournalScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text("Today's Entries", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
+            Text(l10n.journalTodaysEntries, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
             EntriesHistoryRow(
               entryCount: todaysEntries.length,
               onHistoryTap: () => Navigator.of(context).push(
@@ -361,7 +366,7 @@ class _JournalScreenState extends State<JournalScreen> {
           child: todaysEntries.isEmpty
               ? Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text('Nothing logged yet today.', style: TextStyle(color: scheme.onSurfaceVariant)),
+                  child: Text(l10n.journalNothingLoggedYet, style: TextStyle(color: scheme.onSurfaceVariant)),
                 )
               : Builder(
                   builder: (context) {
@@ -409,7 +414,7 @@ class _JournalScreenState extends State<JournalScreen> {
                                   onPressed: page > 0 ? () => _goToPage(page - 1) : null,
                                   icon: const Icon(Icons.chevron_left),
                                   visualDensity: VisualDensity.compact,
-                                  tooltip: 'Previous page',
+                                  tooltip: l10n.deletedEntriesPrevPage,
                                 ),
                               ),
                               for (var i = 0; i < pageCount; i++)
@@ -433,14 +438,14 @@ class _JournalScreenState extends State<JournalScreen> {
                                   onPressed: page < pageCount - 1 ? () => _goToPage(page + 1) : null,
                                   icon: const Icon(Icons.chevron_right),
                                   visualDensity: VisualDensity.compact,
-                                  tooltip: 'Next page',
+                                  tooltip: l10n.deletedEntriesNextPage,
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 2),
                         ],
-                        Text('${todaysEntries.length} of ${AppState.maxDailyEntries} daily slots',
+                        Text(l10n.journalDailySlots(todaysEntries.length, AppState.maxDailyEntries),
                             style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
                       ],
                     );
@@ -452,14 +457,14 @@ class _JournalScreenState extends State<JournalScreen> {
         const SizedBox(height: 24),
         KeyedSubtree(
           key: _reflectionKey,
-          child: Text('Journal Reflection',
+          child: Text(l10n.journalReflectionTitle,
               style: Theme.of(context)
                   .textTheme
                   .titleLarge
                   ?.copyWith(color: scheme.primary, fontWeight: FontWeight.w700)),
         ),
         const SizedBox(height: 24),
-        Text('Writing Theme', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
+        Text(l10n.journalWritingTheme, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
         const SizedBox(height: 8),
         Row(
           children: [
@@ -477,7 +482,7 @@ class _JournalScreenState extends State<JournalScreen> {
           ],
         ),
         const SizedBox(height: 24),
-        Text('Journal Title (Optional)',
+        Text(l10n.journalTitleFieldLabel,
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
         const SizedBox(height: 8),
         Container(
@@ -487,7 +492,7 @@ class _JournalScreenState extends State<JournalScreen> {
             maxLength: _maxTitleLength,
             maxLengthEnforcement: MaxLengthEnforcement.enforced,
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               border: InputBorder.none,
               isDense: true,
               // Without this, the global theme's own filled/fillColor
@@ -497,7 +502,7 @@ class _JournalScreenState extends State<JournalScreen> {
               // TextField's own fill was covering it up every time.
               filled: false,
               contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              hintText: 'Title your journal...',
+              hintText: l10n.journalTitleHint,
               counterText: '',
             ),
           ),
@@ -518,10 +523,10 @@ class _JournalScreenState extends State<JournalScreen> {
                 maxLength: _maxJournalLength,
                 maxLengthEnforcement: MaxLengthEnforcement.enforced,
                 style: const TextStyle(fontSize: 18, height: 1.5, fontWeight: FontWeight.w500),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   border: InputBorder.none,
                   filled: false,
-                  hintText: 'Write your thoughts here...',
+                  hintText: l10n.journalWriteHint,
                   contentPadding: EdgeInsets.zero,
                   // Built-in counter is suppressed here and shown as our
                   // own right-aligned caption below the box instead — the
@@ -553,7 +558,7 @@ class _JournalScreenState extends State<JournalScreen> {
                               child: MoodEmoji(mood: mood, size: 12),
                             ),
                             const SizedBox(width: 10),
-                            Text(mood.label),
+                            Text(moodLabel(context, mood)),
                           ],
                         ),
                       ),
@@ -575,7 +580,7 @@ class _JournalScreenState extends State<JournalScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('Feeling:', style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
+                        Text(l10n.journalFeelingLabel, style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
                         const SizedBox(width: 6),
                         MoodEmoji(mood: _mood, size: 20),
                       ],
@@ -601,28 +606,35 @@ class _JournalScreenState extends State<JournalScreen> {
         ),
         const SizedBox(height: 24),
         Text(
-          _photos.isEmpty ? 'Photos (Optional)' : 'Photos (Optional) · ${_photos.length}/${JournalEntry.maxPhotos}',
+          _photos.isEmpty
+              ? l10n.journalPhotosLabel
+              : l10n.journalPhotosLabelCount(_photos.length, JournalEntry.maxPhotos),
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant),
         ),
         const SizedBox(height: 8),
-        SizedBox(
-          height: 96,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: _photos.length + (_photos.length < JournalEntry.maxPhotos ? 1 : 0),
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
-            itemBuilder: (context, index) {
-              if (index == _photos.length) {
-                return AddPhotoTile(
-                  label: _photos.isEmpty ? 'Add Photo' : 'Add More',
-                  onTap: _addPhoto,
+        Showcase(
+          key: TourKeys.journalActions,
+          description: AppTour.journalActionsText(context),
+          targetBorderRadius: BorderRadius.circular(20),
+          child: SizedBox(
+            height: 96,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _photos.length + (_photos.length < JournalEntry.maxPhotos ? 1 : 0),
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                if (index == _photos.length) {
+                  return AddPhotoTile(
+                    label: _photos.isEmpty ? l10n.journalAddPhoto : l10n.journalAddMorePhoto,
+                    onTap: _addPhoto,
+                  );
+                }
+                return PhotoTile(
+                  base64Photo: _photos[index],
+                  onRemove: () => setState(() => _photos.removeAt(index)),
                 );
-              }
-              return PhotoTile(
-                base64Photo: _photos[index],
-                onRemove: () => setState(() => _photos.removeAt(index)),
-              );
-            },
+              },
+            ),
           ),
         ),
         if (_voiceNote == null) ...[
@@ -636,7 +648,7 @@ class _JournalScreenState extends State<JournalScreen> {
             ),
             onPressed: _recordVoiceNote,
             icon: const Icon(Icons.mic),
-            label: const Text('Voice Note'),
+            label: Text(l10n.journalVoiceNoteButton),
           ),
         ],
         if (_voiceNote != null) ...[
@@ -647,7 +659,7 @@ class _JournalScreenState extends State<JournalScreen> {
           ),
         ],
         const SizedBox(height: 24),
-        Text('Tags (Optional)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
+        Text(l10n.journalTagsLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -655,7 +667,7 @@ class _JournalScreenState extends State<JournalScreen> {
           children: [
             for (final tag in _tagOptions)
               _TagChip(
-                label: tag,
+                label: activityLabel(context, tag),
                 selected: _tags.contains(tag),
                 // Plain white always — not _composerFillColor, which
                 // follows whichever Writing Theme is currently picked
@@ -670,7 +682,7 @@ class _JournalScreenState extends State<JournalScreen> {
               ),
             for (final tag in _tags.where((t) => !_tagOptions.contains(t)))
               _TagChip(
-                label: tag,
+                label: activityLabel(context, tag),
                 selected: true,
                 unselectedColor: scheme.surfaceContainerLowest,
                 onTap: () => setState(() => _tags.remove(tag)),
@@ -705,7 +717,7 @@ class _JournalScreenState extends State<JournalScreen> {
                   maxLength: _maxTagLength,
                   maxLengthEnforcement: MaxLengthEnforcement.enforced,
                   decoration: InputDecoration(
-                    hintText: 'Add a tag',
+                    hintText: l10n.journalAddTagHint,
                     counterText: '',
                     // Plain white always, like the tag chips next to it
                     // (see their own unselectedColor comment) — not
@@ -750,12 +762,12 @@ class _JournalScreenState extends State<JournalScreen> {
                   ),
                   onPressed: _complete,
                   icon: const Icon(Icons.check_circle),
-                  label: const Text('Save Journal', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  label: Text(l10n.journalSaveButton, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                 ),
               ),
               if (appState.hasReachedDailyCap(today)) ...[
                 const SizedBox(height: 8),
-                Text("Today's ${AppState.maxDailyEntries}-entry limit is reached.",
+                Text(l10n.todayEntryLimitBanner(AppState.maxDailyEntries),
                     style: TextStyle(fontSize: 12, color: scheme.error)),
               ],
             ],
@@ -777,27 +789,26 @@ class _DailyReflectionBar extends StatefulWidget {
 }
 
 class _DailyReflectionBarState extends State<_DailyReflectionBar> {
+  bool _expanded = false;
+  bool _autoTriggered = false;
+
   // Preloaded pool used whenever Gemini isn't available — no API key, no
   // connection, or the quota's been used up. Picked deterministically by
   // day-of-year (not random) so it still rotates day to day rather than
   // always landing on the same one, and stays consistent if the app
   // reloads partway through the same day.
-  static const _fallbackPrompts = [
-    "What's one small thing that made you smile today?",
-    "What's something you're looking forward to?",
-    "Is there a moment today you'd like to remember?",
-    "What's weighing on your mind right now?",
-    "What's one thing you're grateful for today?",
-    "How did you take care of yourself today?",
-    "What would make tomorrow a little better?",
-  ];
-
-  bool _expanded = false;
-  bool _autoTriggered = false;
-
-  String _localFallback() {
+  String _localFallback(AppLocalizations l10n) {
+    final fallbackPrompts = [
+      l10n.journalReflectionFallback1,
+      l10n.journalReflectionFallback2,
+      l10n.journalReflectionFallback3,
+      l10n.journalReflectionFallback4,
+      l10n.journalReflectionFallback5,
+      l10n.journalReflectionFallback6,
+      l10n.journalReflectionFallback7,
+    ];
     final dayOfYear = int.parse(DateFormat('D').format(DateTime.now()));
-    return _fallbackPrompts[dayOfYear % _fallbackPrompts.length];
+    return fallbackPrompts[dayOfYear % fallbackPrompts.length];
   }
 
   @override
@@ -820,9 +831,10 @@ class _DailyReflectionBarState extends State<_DailyReflectionBar> {
       // ancestor that already finished building earlier this same frame
       // — from a descendant that's still mounting. Waiting for the frame
       // to actually finish first avoids that entirely.
+      final l10n = AppLocalizations.of(context)!;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        appState.setTodaysReflectionPrompt(_localFallback());
+        appState.setTodaysReflectionPrompt(_localFallback(l10n));
       });
       return;
     }
@@ -833,19 +845,20 @@ class _DailyReflectionBarState extends State<_DailyReflectionBar> {
       // Quota hit, network hiccup, whatever — the local pool means this
       // bar is never just empty or stuck loading.
       if (!mounted) return;
-      appState.setTodaysReflectionPrompt(_localFallback());
+      appState.setTodaysReflectionPrompt(_localFallback(AppLocalizations.of(context)!));
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     // Shows a real prompt immediately even before today's has finished
     // generating/persisting (see didChangeDependencies above) — falls
     // back to the same deterministic local pick build() would land on
     // anyway, so there's no flash of empty content while Gemini's call
     // is still in flight.
-    final prompt = AppStateScope.of(context).todaysReflectionPrompt ?? _localFallback();
+    final prompt = AppStateScope.of(context).todaysReflectionPrompt ?? _localFallback(l10n);
     return InkWell(
       borderRadius: BorderRadius.circular(24),
       onTap: () => setState(() => _expanded = !_expanded),
@@ -865,7 +878,7 @@ class _DailyReflectionBarState extends State<_DailyReflectionBar> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('DAILY REFLECTION',
+                  Text(l10n.journalDailyReflection,
                       style: TextStyle(
                           color: scheme.secondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1)),
                   const SizedBox(height: 2),
@@ -921,6 +934,7 @@ class _TimelineRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final labels = entry.labels;
 
     // A "Feeling {mood}" subtitle is only worth showing when the title
@@ -951,11 +965,10 @@ class _TimelineRow extends StatelessWidget {
             await showDialog<void>(
               context: context,
               builder: (context) => AlertDialog(
-                title: const Text('Deleted history is full'),
-                content: Text(
-                    "This day's History already has ${AppState.maxDeletedEntriesPerDay} deleted entries. Restore or permanently delete some from History before deleting another."),
+                title: Text(l10n.deletedHistoryFullTitle),
+                content: Text(l10n.deletedHistoryFullBody(AppState.maxDeletedEntriesPerDay)),
                 actions: [
-                  TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK')),
+                  TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(l10n.actionOk)),
                 ],
               ),
             );
@@ -964,13 +977,13 @@ class _TimelineRow extends StatelessWidget {
           final confirmed = await showDialog<bool>(
             context: context,
             builder: (context) => AlertDialog(
-              title: const Text('Delete entry?'),
-              content: Text('Remove "${entry.title}" from your timeline? You can restore it later from History.'),
+              title: Text(l10n.entryDeleteConfirmTitle),
+              content: Text(l10n.journalDeleteConfirmBody(entry.title)),
               actions: [
-                TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('No')),
+                TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(l10n.actionNo)),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(true),
-                  child: Text('Yes, delete', style: TextStyle(color: scheme.error)),
+                  child: Text(l10n.actionYesDelete, style: TextStyle(color: scheme.error)),
                 ),
               ],
             ),
@@ -979,7 +992,7 @@ class _TimelineRow extends StatelessWidget {
         },
         onDismissed: (_) {
           AppStateScope.of(context).deleteEntry(entry.id);
-          showAppSnackBar(context, 'Entry deleted');
+          showAppSnackBar(context, l10n.entryDeletedSnackbar);
         },
         child: Material(
           // Mood-tinted like Calendar's day-view card, instead of a flat
@@ -1043,7 +1056,7 @@ class _TimelineRow extends StatelessWidget {
                                     style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                                 if (hasCustomTitle) ...[
                                   const SizedBox(height: 2),
-                                  Text('Feeling ${entry.mood.label}',
+                                  Text(l10n.entryFeelingMood(moodLabel(context, entry.mood)),
                                       style: TextStyle(
                                           fontSize: 13, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant)),
                                 ],
@@ -1066,7 +1079,7 @@ class _TimelineRow extends StatelessWidget {
                               onPressed: onToggleExpand,
                               icon: Icon(expanded ? Icons.expand_less : Icons.expand_more,
                                   size: 20, color: scheme.onSurfaceVariant),
-                              tooltip: expanded ? 'Show less' : 'Show more',
+                              tooltip: expanded ? l10n.entryShowLess : l10n.entryShowMore,
                               visualDensity: VisualDensity.compact,
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),

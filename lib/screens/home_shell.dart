@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/app_state.dart';
+import '../services/app_tour.dart';
 import '../widgets/aura_fab.dart';
 import '../widgets/lumina_bottom_nav.dart';
 import '../widgets/lumina_top_bar.dart';
@@ -34,9 +35,61 @@ class _HomeShellState extends State<HomeShell> {
   static const _journalIndex = 2;
   static const _calendarIndex = 3;
 
+  // Guards against starting a second tour while one's already running —
+  // e.g. the tour's own tab switches trigger rebuilds, which would
+  // otherwise re-enter _maybeStartTour on every one of them.
+  bool _tourRunning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Must happen synchronously here, before the first build() — every
+    // Showcase-wrapped widget below (bottom nav, Aura FAB, the Settings
+    // icon, ...) is unconditionally part of this tree regardless of
+    // whether a tour is actually running, and throws immediately at
+    // build time if no ShowcaseView is registered yet. Deferring this to
+    // a post-frame callback (i.e. only inside _maybeStartTour) was too
+    // late — this widget's very first build() already needs it.
+    AppTour.register();
+  }
+
+  /// Switches tabs (a no-op if already on [index]) and waits a frame so
+  /// whatever's newly visible has actually laid out — [AppTour] passes
+  /// this in as its own tab-switching hook, since only HomeShell owns
+  /// [_index].
+  Future<void> _goToTab(int index) async {
+    if (!mounted) return;
+    if (_index != index) {
+      setState(() => _index = index);
+      await WidgetsBinding.instance.endOfFrame;
+    }
+  }
+
+  /// Auto-starts the guided tour the first time a signed-in account ever
+  /// reaches HomeShell (see [AppState.hasSeenTour]), or any time Settings'
+  /// "Take a Tour" row sets [AppState.requestTourReplay] and pops back
+  /// here. Checked on every build — cheap when idle (both signals are
+  /// just field reads/a no-op consuming getter) and self-guarding via
+  /// [_tourRunning] against re-entering mid-tour, the same pattern this
+  /// class already uses for the pending-check-in tab switch below.
+  void _maybeStartTour(AppState appState) {
+    if (_tourRunning) return;
+    final replayRequested = appState.takeTourReplayRequested();
+    if (!replayRequested && appState.hasSeenTour) return;
+    _tourRunning = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final includeCheckIn = appState.entriesOn(DateTime.now()).isEmpty;
+      await AppTour.start(context, goToTab: _goToTab, includeCheckIn: includeCheckIn);
+      appState.dismissTour();
+      _tourRunning = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
+    _maybeStartTour(appState);
 
     // Rebuilt (not a static const list) so InsightsScreen/JournalScreen/
     // CalendarScreen can be told whether they're the tab currently

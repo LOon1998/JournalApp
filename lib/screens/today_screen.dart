@@ -50,15 +50,13 @@ class _TodayScreenState extends State<TodayScreen> {
   }
 
   bool _checkMoodAndCap(AppState appState) {
+    final l10n = AppLocalizations.of(context)!;
     if (_selectedMood == null) {
-      showAppSnackBar(context, 'Pick a mood first \u{1F642}');
+      showAppSnackBar(context, l10n.todayPickMoodFirst);
       return false;
     }
     if (appState.hasReachedDailyCap(DateTime.now())) {
-      showAppSnackBar(
-        context,
-        "Today's ${AppState.maxDailyEntries}-entry limit is reached — delete one to add another.",
-      );
+      showAppSnackBar(context, l10n.todayEntryLimitSnackbar(AppState.maxDailyEntries));
       return false;
     }
     return true;
@@ -87,7 +85,7 @@ class _TodayScreenState extends State<TodayScreen> {
     // immediately — Journal then scrolls to and briefly highlights it so
     // it's obvious exactly where the quick save landed.
     appState.addQuickEntry(_selectedMood!, _activities.toList());
-    showAppSnackBar(context, 'Mood saved to your journal \u{1F4D6}');
+    showAppSnackBar(context, AppLocalizations.of(context)!.todayMoodSaved);
     setState(() {
       _selectedMood = null;
       _activities.clear();
@@ -103,7 +101,7 @@ class _TodayScreenState extends State<TodayScreen> {
         .where((a) => !_activityOptions.contains(a))
         .length;
     if (customCount >= _maxCustomActivities) {
-      showAppSnackBar(context, 'Up to $_maxCustomActivities custom activities');
+      showAppSnackBar(context, AppLocalizations.of(context)!.todayCustomActivityCap(_maxCustomActivities));
       return;
     }
     setState(() {
@@ -231,7 +229,7 @@ class _TodayScreenState extends State<TodayScreen> {
                       children: [
                         for (final activity in _activityOptions)
                           _ActivityChip(
-                            label: activity,
+                            label: activityLabel(context, activity),
                             icon: activityIconFor(activity),
                             selected: _activities.contains(activity),
                             onTap: () => setState(() {
@@ -247,7 +245,7 @@ class _TodayScreenState extends State<TodayScreen> {
                           (a) => !_activityOptions.contains(a),
                         ))
                           _ActivityChip(
-                            label: activity,
+                            label: activityLabel(context, activity),
                             // Falls back to activityIconFor first — a custom
                             // typed activity can still happen to match the
                             // vocabulary (e.g. "reading", not one of the preset
@@ -276,7 +274,7 @@ class _TodayScreenState extends State<TodayScreen> {
                       const SizedBox(height: 8),
                       Center(
                         child: _ActivityChip(
-                          label: 'Other',
+                          label: l10n.activityOther,
                           icon: Icons.add,
                           selected: _showCustomActivity,
                           onTap: () => setState(
@@ -297,8 +295,8 @@ class _TodayScreenState extends State<TodayScreen> {
                                 autofocus: true,
                                 maxLength: _maxActivityLength,
                                 maxLengthEnforcement: MaxLengthEnforcement.enforced,
-                                decoration: const InputDecoration(
-                                  hintText: 'What else?',
+                                decoration: InputDecoration(
+                                  hintText: l10n.todayCustomActivityHint,
                                   counterText: '',
                                 ),
                                 // Enter/"Done" on the keyboard confirms too, not
@@ -388,7 +386,7 @@ class _TodayScreenState extends State<TodayScreen> {
                 const SizedBox(height: 8),
                 Center(
                   child: Text(
-                    "Today's ${AppState.maxDailyEntries}-entry limit is reached.",
+                    l10n.todayEntryLimitBanner(AppState.maxDailyEntries),
                     style: TextStyle(fontSize: 12, color: scheme.error),
                   ),
                 ),
@@ -466,7 +464,7 @@ class _MoodOption extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              mood.label,
+              moodLabel(context, mood),
               style: TextStyle(
                 fontSize: labelSize,
                 fontWeight: FontWeight.w600,

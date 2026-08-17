@@ -109,6 +109,37 @@ class AppState extends ChangeNotifier {
   /// per app launch.
   bool hasSeenAuraHint = false;
 
+  /// Whether the first-run guided tour (bottom nav, Aura, the check-in
+  /// card, Journal's photo/voice/tag row, Settings) has already auto-
+  /// played. Persisted like [hasSeenAuraHint] so it only ever auto-starts
+  /// once per account — Settings' "Take a Tour" row replays it on demand
+  /// afterward without touching this flag (see [requestTourReplay]).
+  bool hasSeenTour = false;
+
+  /// Marks the guided tour as seen so it never auto-starts again. Safe to
+  /// call repeatedly — a no-op once already dismissed.
+  void dismissTour() {
+    if (hasSeenTour) return;
+    hasSeenTour = true;
+    notifyListeners();
+    _persist();
+  }
+
+  /// One-shot, not-persisted signal — Settings' "Take a Tour" row sets
+  /// this and pops back to HomeShell, which checks it (via
+  /// [takeTourReplayRequested]) once it's back on screen and starts the
+  /// tour again regardless of [hasSeenTour]. Same signal-and-consume
+  /// pattern as [pendingCheckIn]/[justAddedEntryId].
+  bool _tourReplayRequested = false;
+
+  void requestTourReplay() => _tourReplayRequested = true;
+
+  bool takeTourReplayRequested() {
+    final requested = _tourReplayRequested;
+    _tourReplayRequested = false;
+    return requested;
+  }
+
   /// User-supplied Gemini API key, pasted into Settings — powers Insights'
   /// "Top Themes" chart. Stored locally only (same SharedPreferences blob
   /// as everything else); never hardcoded into the app itself, since this
@@ -691,6 +722,7 @@ class AppState extends ChangeNotifier {
       notificationsEnabled = map['notif'] as bool? ?? true;
       languageCode = map['lang'] as String?;
       hasSeenAuraHint = map['auraHintSeen'] as bool? ?? false;
+      hasSeenTour = map['tourSeen'] as bool? ?? false;
       geminiApiKey = map['geminiApiKey'] as String?;
       userName = (map['userName'] as String?) ?? userName;
       profilePhotoBase64 = map['profilePhoto'] as String?;
@@ -819,6 +851,7 @@ class AppState extends ChangeNotifier {
       'notif': notificationsEnabled,
       'lang': languageCode,
       'auraHintSeen': hasSeenAuraHint,
+      'tourSeen': hasSeenTour,
       'geminiApiKey': geminiApiKey,
       'profilePhoto': profilePhotoBase64,
       'userName': userName,

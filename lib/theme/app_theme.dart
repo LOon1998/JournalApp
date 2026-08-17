@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../l10n/generated/app_localizations.dart';
 
 /// Design tokens lifted 1:1 from the Lumina web mockups' Tailwind config
 /// (the `colors` block shared by every screen).
@@ -114,10 +115,31 @@ enum Mood {
 
   const Mood(this.label, this.emoji, this.swatch, this.onSwatch);
 
+  /// Fixed English word — kept as-is (never localized) because it's baked
+  /// into stored data: the default entry title ('Feeling $label') and the
+  /// hasCustomTitle check that compares against it, both of which need to
+  /// stay stable across a language switch so old entries don't suddenly
+  /// look "customized" just because the UI language changed. Anywhere
+  /// this mood name is shown to the person as a plain label/chip/pill
+  /// (not reconstructing a stored title), use [moodLabel] instead.
   final String label;
   final String emoji;
   final Color swatch;
   final Color onSwatch;
+}
+
+/// Localized display text for a mood — use this (not [Mood.label]) for
+/// every plain on-screen label/chip/pill. See [Mood.label]'s doc for why
+/// the two are kept separate.
+String moodLabel(BuildContext context, Mood mood) {
+  final l10n = AppLocalizations.of(context)!;
+  return switch (mood) {
+    Mood.great => l10n.moodGreat,
+    Mood.good => l10n.moodGood,
+    Mood.okay => l10n.moodOkay,
+    Mood.sad => l10n.moodSad,
+    Mood.awful => l10n.moodAwful,
+  };
 }
 
 class AppTheme {

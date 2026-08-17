@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../data/app_state.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../models/journal_entry.dart';
 import '../theme/app_theme.dart';
 import '../services/text_measure.dart';
@@ -88,6 +89,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final appState = AppStateScope.of(context);
     final daysInMonth = DateUtils.getDaysInMonth(_visibleMonth.year, _visibleMonth.month);
     final firstWeekday = DateTime(_visibleMonth.year, _visibleMonth.month, 1).weekday % 7; // Sun=0
@@ -178,7 +180,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         if (selectedEntries.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Text('No entries on this day yet.', style: TextStyle(color: scheme.onSurfaceVariant)),
+            child: Text(l10n.calendarNoEntriesYet, style: TextStyle(color: scheme.onSurfaceVariant)),
           )
         else
           Builder(
@@ -218,7 +220,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             onPressed: page > 0 ? () => _goToEntriesPage(page - 1) : null,
                             icon: const Icon(Icons.chevron_left),
                             visualDensity: VisualDensity.compact,
-                            tooltip: 'Previous page',
+                            tooltip: l10n.deletedEntriesPrevPage,
                           ),
                         ),
                         for (var i = 0; i < pageCount; i++)
@@ -242,7 +244,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             onPressed: page < pageCount - 1 ? () => _goToEntriesPage(page + 1) : null,
                             icon: const Icon(Icons.chevron_right),
                             visualDensity: VisualDensity.compact,
-                            tooltip: 'Next page',
+                            tooltip: l10n.deletedEntriesNextPage,
                           ),
                         ),
                       ],
@@ -378,6 +380,7 @@ class _EntryDetailCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
 
     // A "Feeling {mood}" subtitle is only worth showing when the title
     // isn't already that exact string (i.e. a custom title was given) —
@@ -419,11 +422,10 @@ class _EntryDetailCard extends StatelessWidget {
             await showDialog<void>(
               context: context,
               builder: (context) => AlertDialog(
-                title: const Text('Deleted history is full'),
-                content: Text(
-                    "This day's History already has ${AppState.maxDeletedEntriesPerDay} deleted entries. Restore or permanently delete some from History before deleting another."),
+                title: Text(l10n.deletedHistoryFullTitle),
+                content: Text(l10n.deletedHistoryFullBody(AppState.maxDeletedEntriesPerDay)),
                 actions: [
-                  TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK')),
+                  TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(l10n.actionOk)),
                 ],
               ),
             );
@@ -432,13 +434,13 @@ class _EntryDetailCard extends StatelessWidget {
           final confirmed = await showDialog<bool>(
             context: context,
             builder: (context) => AlertDialog(
-              title: const Text('Delete entry?'),
-              content: Text('Remove "${entry.title}" from this day? You can restore it later from History.'),
+              title: Text(l10n.entryDeleteConfirmTitle),
+              content: Text(l10n.entryDeleteConfirmBody(entry.title)),
               actions: [
-                TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('No')),
+                TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(l10n.actionNo)),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(true),
-                  child: Text('Yes, delete', style: TextStyle(color: scheme.error)),
+                  child: Text(l10n.actionYesDelete, style: TextStyle(color: scheme.error)),
                 ),
               ],
             ),
@@ -447,7 +449,7 @@ class _EntryDetailCard extends StatelessWidget {
         },
         onDismissed: (_) {
           AppStateScope.of(context).deleteEntry(entry.id);
-          showAppSnackBar(context, 'Entry deleted');
+          showAppSnackBar(context, l10n.entryDeletedSnackbar);
         },
         child: Material(
           // Same darker fill + visible border as Journal's own entry
@@ -503,7 +505,7 @@ class _EntryDetailCard extends StatelessWidget {
                                     style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: moodTextColor)),
                                 if (hasCustomTitle) ...[
                                   const SizedBox(height: 2),
-                                  Text('Feeling ${entry.mood.label}',
+                                  Text(l10n.entryFeelingMood(moodLabel(context, entry.mood)),
                                       style: TextStyle(
                                           fontSize: 13, fontWeight: FontWeight.w600, color: scheme.outline)),
                                 ],
@@ -526,7 +528,7 @@ class _EntryDetailCard extends StatelessWidget {
                               onPressed: onToggleExpand,
                               icon: Icon(expanded ? Icons.expand_less : Icons.expand_more,
                                   size: 20, color: moodTextColor),
-                              tooltip: expanded ? 'Show less' : 'Show more',
+                              tooltip: expanded ? l10n.entryShowLess : l10n.entryShowMore,
                               visualDensity: VisualDensity.compact,
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),

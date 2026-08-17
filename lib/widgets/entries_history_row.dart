@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/generated/app_localizations.dart';
 
 /// The "N entries | History" row shown above an entry list — entry count
 /// on the left, a thin vertical divider, then a tap target opening that
@@ -14,10 +15,11 @@ class EntriesHistoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('$entryCount ${entryCount == 1 ? 'entry' : 'entries'}',
+        Text(l10n.entriesHistoryCount(entryCount),
             style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
         const SizedBox(width: 8),
         Container(width: 1, height: 12, color: scheme.outlineVariant),
@@ -30,7 +32,7 @@ class EntriesHistoryRow extends StatelessWidget {
             children: [
               Icon(Icons.history, size: 14, color: scheme.primary),
               const SizedBox(width: 2),
-              Text('History', style: TextStyle(color: scheme.primary, fontSize: 12, fontWeight: FontWeight.w600)),
+              Text(l10n.journalHistory, style: TextStyle(color: scheme.primary, fontSize: 12, fontWeight: FontWeight.w600)),
             ],
           ),
         ),

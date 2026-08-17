@@ -29,6 +29,7 @@
   "activityExercise": "Exercise",
   "activitySleep": "Sleep",
   "activityOther": "Other",
+  "activityHealth": "Health",
   "continueWriteJournal": "Continue & Write\nJournal",
   "saveMoodOnly": "Save Mood Only",
 
@@ -55,5 +56,460 @@
   "settingsPrivacySecurity": "Privacy & Security",
   "settingsHelpSupport": "Help & Support",
   "settingsAboutLumina": "About Moodlet",
-  "settingsLogOut": "Log Out"
+  "settingsLogOut": "Log Out",
+
+  "actionRemove": "Remove",
+  "actionStartOver": "Start Over",
+  "actionOk": "OK",
+
+  "welcomeTitle": "You're all set, Friend!",
+  "welcomeSubtitle": "Welcome to your new digital hug — a private space that's yours alone. Whenever you're ready, let's take a moment for yourself.",
+  "welcomeStartButton": "Start My First Check-in",
+
+  "appLockIncorrectPattern": "Incorrect pattern — try again",
+  "appLockDrawToUnlock": "Draw your pattern to unlock",
+
+  "patternLockSetupTitle": "Set Pattern Lock",
+  "patternLockDrawNew": "Draw a new pattern",
+  "patternLockConnectDots": "Connect at least 2 dots — try again",
+  "patternLockDrawAgainConfirm": "Draw the pattern again to confirm",
+  "patternLockDidntMatch": "Patterns didn't match — draw a new pattern",
+  "patternLockSetSnackbar": "Pattern Lock set",
+
+  "helpSupportEmailFailed": "Couldn't open your email app — you can reach us at {email}",
+  "@helpSupportEmailFailed": {
+    "placeholders": { "email": { "type": "String" } }
+  },
+  "helpSupportHeroTitle": "We're here to help",
+  "helpSupportHeroSubtitle": "A couple of quick answers below — or reach out directly and we'll get back to you.",
+  "helpSupportFaqTitle": "Frequently Asked Questions",
+  "helpSupportFaq1Q": "Is my data secured?",
+  "helpSupportFaq1A": "Yes — your account and journal are protected by Firebase Authentication and Cloud Firestore, with access rules that restrict your data to your own signed-in account only. See the Privacy Policy (About Moodlet) for the full details.",
+  "helpSupportFaq2Q": "Can I use Moodlet on multiple devices?",
+  "helpSupportFaq2A": "Yes — sign in with the same account on any device and your journal, mood history, and settings will all be right there. Pattern Lock is the only exception — it's set per-device, so you'll set it up again on a new one.",
+  "helpSupportStillNeedHand": "Still need a hand?",
+  "helpSupportEmailUs": "Email us — {email}",
+  "@helpSupportEmailUs": {
+    "placeholders": { "email": { "type": "String" } }
+  },
+
+  "privacyPolicyTitle": "Privacy Policy",
+  "privacyPolicyLastUpdated": "Last updated: {date}",
+  "@privacyPolicyLastUpdated": {
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "privacyPolicyOverviewTitle": "Overview",
+  "privacyPolicyOverviewBody": "Moodlet (\"we\", \"our\", \"the app\") is a personal journaling app. This policy explains what information the app collects, how it is used, and the choices you have. Using Moodlet means you agree to the practices described here.",
+  "privacyPolicyInfoCollectTitle": "Information We Collect",
+  "privacyPolicyInfoCollectBody": "• Account information: the email address and password you sign up with (your password is never visible to us — Firebase Authentication handles it directly).\n• Profile info you choose to add: a display name and/or profile photo.\n• Journal content: anything you write, the mood and tags/activities you record, and any photos or voice notes you attach to an entry.\n• Optional AI key: if you choose to connect a Google Gemini API key in Settings for AI-powered features, that key is stored so the app can use it — see \"Optional AI Features\" below.\n\nWe do not collect analytics, advertising identifiers, or location data, and Moodlet contains no ads or third-party trackers.",
+  "privacyPolicyStorageTitle": "How We Store Your Information",
+  "privacyPolicyStorageBody": "Your account and journal data are stored using Firebase Authentication and Cloud Firestore (Google Cloud infrastructure), encrypted in transit. Access rules restrict your data to your own signed-in account — no other user can read or write it. A copy is also cached on your device so the app works offline; that local copy is cleared when you delete your account.",
+  "privacyPolicyUseTitle": "How We Use Your Information",
+  "privacyPolicyUseBody": "• To create and secure your account, and let you sign back in on any device.\n• To store and sync your journal entries so they're available whenever you open the app.\n• To show you your own mood trends and patterns within the app (Insights).\n• To send an optional local daily reminder notification, if you turn that on — this is scheduled entirely on your device and involves no data being sent anywhere.\n\nWe do not use your journal content for advertising, and we do not sell your information to anyone.",
+  "privacyPolicyAiTitle": "Optional AI Features",
+  "privacyPolicyAiBody": "Moodlet can use the Google Gemini API to suggest reflection prompts, refine your weekly mood trend, or generate a title from an entry — but only if you provide your own Gemini API key in Settings. If you do, the relevant entry text is sent directly to Google's Gemini API to generate that response, subject to Google's own privacy terms. If no key is set, none of this happens and no journal content ever leaves your device for this purpose.",
+  "privacyPolicySecurityTitle": "On-Device Security Features",
+  "privacyPolicySecurityBody": "Pattern Lock (Settings → Privacy & Security) is stored only on your device and is never synced to our servers or visible to us — a drawn pattern is stored only as an irreversible hash, never in a form that could be read back.",
+  "privacyPolicyRetentionTitle": "Data Retention & Deletion",
+  "privacyPolicyRetentionBody": "Your data is kept for as long as your account exists. Deleting an entry from your timeline moves it to History for a limited time before it's permanently removed, so you can restore it if that was a mistake. You can permanently delete your entire account and all associated data at any time from Settings → Delete Account — this immediately and permanently removes your journal data, your local device cache, and your account itself.",
+  "privacyPolicyChildrenTitle": "Children's Privacy",
+  "privacyPolicyChildrenBody": "Moodlet is not directed at children under 13, and we do not knowingly collect information from anyone under that age. If you believe a child has provided us with personal information, please contact us using the details below and we will delete it.",
+  "privacyPolicyChangesTitle": "Changes to This Policy",
+  "privacyPolicyChangesBody": "If this policy changes, the \"Last updated\" date at the top of this page will change too. Continuing to use Moodlet after an update means you accept the revised policy.",
+  "privacyPolicyContactTitle": "Contact Us",
+  "privacyPolicyContactBody": "Questions about this policy or your data? Reach us at {email}.",
+  "@privacyPolicyContactBody": {
+    "placeholders": { "email": { "type": "String" } }
+  },
+
+  "changePasswordTitle": "Change Password",
+  "changePasswordSuccessSnackbar": "Password changed",
+  "changePasswordCurrentLabel": "Current Password",
+  "changePasswordCurrentValidator": "Enter your current password",
+  "changePasswordNewLabel": "New Password",
+  "changePasswordNewHelper": "Must be at least 6 characters.",
+  "changePasswordNewValidatorEmpty": "Enter a new password",
+  "changePasswordNewValidatorLength": "At least 6 characters",
+  "changePasswordNewValidatorSame": "Choose a different password than your current one",
+  "changePasswordConfirmLabel": "Confirm New Password",
+  "changePasswordConfirmValidatorMismatch": "Passwords don't match",
+
+  "privacySecurityIntro": "Keep your journal for your eyes only — protect your account and lock the app on this device.",
+  "privacySecurityAccountSecurity": "Account Security",
+  "privacySecurityPatternLockRow": "Pattern Lock",
+  "privacySecurityOn": "On",
+  "privacySecurityNotSet": "Not set",
+  "privacySecurityChangePattern": "Change Pattern",
+  "privacySecurityRemovePattern": "Remove Pattern",
+  "privacySecurityRemoveDialogTitle": "Remove Pattern Lock?",
+  "privacySecurityRemoveDialogBody": "You'll no longer need a pattern to open Moodlet.",
+  "privacySecurityPatternRemovedSnackbar": "Pattern Lock removed",
+
+  "aboutHeroTitle": "Your Digital Sanctuary",
+  "aboutHeroBody": "Moodlet was created as a safe, non-judgmental space for emotional reflection. We believe taking a moment for yourself shouldn't feel like a chore, but a gentle habit of self-care. Here, you can pause, breathe, and untangle your thoughts in a calm space designed for mindful growth.",
+  "aboutCoreValuesTitle": "Our Core Values",
+  "aboutValuePrivacyTitle": "Privacy First",
+  "aboutValuePrivacyBody": "Your reflections belong solely to you. Your journal is stored in your own private account, never shared or sold, and yours to delete completely whenever you'd like.",
+  "aboutValueGrowthTitle": "Mindful Growth",
+  "aboutValueGrowthBody": "We design interactions to foster gentle self-awareness, avoiding addictive loops in favor of intentional, meaningful check-ins.",
+  "aboutValueCreativeTitle": "Creative Expression",
+  "aboutValueCreativeBody": "An open canvas for your emotions — words, mood colors, photos, voice notes, and tags — so your feelings can take whatever shape suits them.",
+  "aboutVersion": "Version {version}",
+  "@aboutVersion": {
+    "placeholders": { "version": { "type": "String" } }
+  },
+  "aboutCopyright": "© {year} Moodlet Journal. All rights reserved.",
+  "@aboutCopyright": {
+    "placeholders": { "year": { "type": "int" } }
+  },
+
+  "entryFeelingMood": "Feeling {mood}",
+  "@entryFeelingMood": {
+    "placeholders": { "mood": { "type": "String" } }
+  },
+  "insightsNoneYet": "None yet",
+
+  "todayPickMoodFirst": "Pick a mood first 🙂",
+  "todayEntryLimitSnackbar": "Today's {limit}-entry limit is reached — delete one to add another.",
+  "@todayEntryLimitSnackbar": {
+    "placeholders": { "limit": { "type": "int" } }
+  },
+  "todayEntryLimitBanner": "Today's {limit}-entry limit is reached.",
+  "@todayEntryLimitBanner": {
+    "placeholders": { "limit": { "type": "int" } }
+  },
+  "todayMoodSaved": "Mood saved to your journal 📖",
+  "todayCustomActivityCap": "Up to {max} custom activities",
+  "@todayCustomActivityCap": {
+    "placeholders": { "max": { "type": "int" } }
+  },
+  "todayCustomActivityHint": "What else?",
+
+  "editEntryTitle": "Edit Entry",
+  "editEntryTagsLabel": "Tags",
+  "editEntrySaveChanges": "Save Changes",
+
+  "deletedEntriesTitle": "Deleted Entries",
+  "deletedEntriesClearAll": "Clear All",
+  "deletedEntriesSlotsUsed": "{count} of {max} deleted slots",
+  "@deletedEntriesSlotsUsed": {
+    "placeholders": { "count": { "type": "int" }, "max": { "type": "int" } }
+  },
+  "deletedEntriesExpiryNote": "Deleted entries are permanently removed after {days} days.",
+  "@deletedEntriesExpiryNote": {
+    "placeholders": { "days": { "type": "int" } }
+  },
+  "deletedEntriesPrevPage": "Previous page",
+  "deletedEntriesNextPage": "Next page",
+  "deletedEntriesConfirmClearAllTitle": "Permanently delete all?",
+  "deletedEntriesConfirmClearAllBody": "{count, plural, =1{This will permanently delete 1 deleted entry from {date}. This can't be undone.} other{This will permanently delete all {count} deleted entries from {date}. This can't be undone.}}",
+  "@deletedEntriesConfirmClearAllBody": {
+    "placeholders": {
+      "count": { "type": "num" },
+      "date": { "type": "String" }
+    }
+  },
+  "deletedEntriesDeleteAll": "Delete All",
+  "deletedEntriesEmptyTitle": "No Deleted Entries",
+  "deletedEntriesEmptyBody": "Nothing deleted from {date}. Entries you delete show up here so you can restore them or remove them for good.",
+  "@deletedEntriesEmptyBody": {
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "deletedEntriesBadge": "Deleted",
+  "deletedEntriesRestore": "Restore",
+  "deletedEntriesDeleteForever": "Delete Forever",
+  "deletedEntriesCantRestoreTitle": "Can't restore",
+  "deletedEntriesCantRestoreBody": "{date} already has {max} entries — delete one from that day before restoring this.",
+  "@deletedEntriesCantRestoreBody": {
+    "placeholders": { "date": { "type": "String" }, "max": { "type": "int" } }
+  },
+  "deletedEntriesDeleteForeverConfirmTitle": "Delete forever?",
+  "deletedEntriesDeleteForeverConfirmBody": "\"{title}\" will be permanently removed. This can't be undone.",
+  "@deletedEntriesDeleteForeverConfirmBody": {
+    "placeholders": { "title": { "type": "String" } }
+  },
+
+  "authCreateAccount": "Create Account",
+  "authJoinSubtitle": "Join Moodlet and start your journaling journey.",
+  "authSignInSubtitle": "Sign in to continue your journey of mindfulness.",
+  "authAddPhoto": "Add Photo",
+  "authChangePhoto": "Change Photo",
+  "authEmailLabel": "Email",
+  "authEmailEmptyValidator": "Enter your email",
+  "authEmailInvalidValidator": "Enter a valid email",
+  "authPasswordLabel": "Password",
+  "authPasswordHelper": "Must be at least 6 characters.",
+  "authPasswordEmptyValidator": "Enter your password",
+  "authPasswordLengthValidator": "At least 6 characters",
+  "authForgotPassword": "Forgot password?",
+  "authSignIn": "Sign In",
+  "authAlreadyHaveAccount": "Already have an account?",
+  "authDontHaveAccount": "Don't have an account?",
+  "authSignUp": "Sign Up",
+  "authQuickTestSignIn": "Quick Test Sign In",
+  "authForgotPasswordNeedEmail": "Enter your email above first, then tap \"Forgot password?\" again.",
+  "authPasswordResetSent": "Password reset email sent to {email} — check your spam/junk folder if it doesn't show up.",
+  "@authPasswordResetSent": {
+    "placeholders": { "email": { "type": "String" } }
+  },
+
+  "auraChatTitle": "Aura AI",
+  "auraClearChatTooltip": "Clear chat",
+  "auraClearChatDialogTitle": "Clear chat?",
+  "auraClearChatDialogBody": "This conversation with Aura will be cleared. This can't be undone.",
+  "auraClearConfirm": "Clear",
+  "auraTypeMessageHint": "Type a message...",
+  "auraNotAvailableHint": "Currently not available for chat",
+  "auraQuickReply1": "I need to vent",
+  "auraQuickReply2": "Breathing exercise",
+  "auraQuickReply3": "Just chatting",
+  "auraQuickReply4": "Help me reflect on today",
+  "auraQuickReply5": "I'm feeling anxious",
+  "auraQuickReply6": "Celebrate a win with me",
+  "auraQuickReply7": "I'm feeling great today",
+  "auraQuickReply8": "Give me a journal prompt",
+  "auraQuickReply9": "I need some encouragement",
+  "auraQuickReply10": "Help me unwind",
+  "auraQuickReply11": "I'm feeling stuck",
+  "auraQuickReply12": "Something to be grateful for",
+
+  "entriesHistoryCount": "{count, plural, =1{1 entry} other{{count} entries}}",
+  "@entriesHistoryCount": {
+    "placeholders": { "count": { "type": "num" } }
+  },
+
+  "voiceNoteLabel": "Voice note",
+  "topBarHideAura": "Hide Aura companion",
+  "topBarShowAura": "Show Aura companion",
+
+  "voiceRecorderMicPermissionDenied": "Microphone permission wasn't granted.",
+  "voiceRecorderStartError": "Couldn't start recording: {error}",
+  "@voiceRecorderStartError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "voiceRecorderSaveError": "Couldn't save the recording: {error}",
+  "@voiceRecorderSaveError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "voiceRecorderMaxDuration": "Max 60 seconds",
+  "voiceRecorderStopSave": "Stop & Save",
+
+  "auraHintBubble": "Need to talk? I'm here for you.",
+
+  "actionClear": "Clear",
+  "languageSystem": "System",
+
+  "settingsSubtitle": "Customize your digital hug.",
+  "settingsEditPhoto": "Edit Photo",
+  "settingsAppearance": "Appearance",
+  "settingsLight": "Light",
+  "settingsDark": "Dark",
+  "settingsAiCompanion": "AI Companion",
+  "settingsEnableAura": "Enable Aura",
+  "settingsEnableAuraSubtitle": "Let the floating Aura chatbot accompany you.",
+  "settingsTestingTools": "Testing Tools",
+  "settingsTestingToolsSubtitle": "Not a real feature — just here to make QA-ing today's UI states easier.",
+  "settingsClearTodayButton": "Clear Today's Entries",
+  "settingsFillPastWeek": "Fill Past 7 Days",
+  "settingsFillPastWeekSnackbar": "Added a week's worth of test entries",
+  "settingsClearAllButton": "Clear All Entries",
+  "settingsTestNotification": "Test Notification",
+  "settingsTestNotificationSnackbar": "Test notification sent — check your notification shade",
+  "settingsDeleteAccount": "Delete Account",
+  "settingsEditNameDialogTitle": "Edit name",
+  "settingsNameHint": "Your name",
+  "settingsTakePhoto": "Take Photo",
+  "settingsChooseFromGallery": "Choose from Gallery",
+  "settingsRemovePhoto": "Remove Photo",
+  "settingsClearTodayConfirmTitle": "Clear today's entries?",
+  "settingsClearTodayConfirmBody": "Soft-deletes every entry logged today (they're recoverable from History, same as swipe-delete) — lets you re-test things like the Insights check-in card that only show when today has nothing logged yet.",
+  "settingsClearTodaySnackbar": "Today's entries cleared",
+  "settingsClearAllConfirmTitle": "Clear every entry?",
+  "settingsClearAllConfirmBody": "Permanently wipes every entry — live and already in Deleted History alike — for a genuinely clean slate. Unlike \"Clear Today's Entries,\" this can't be undone.",
+  "settingsClearAllConfirmButton": "Clear Everything",
+  "settingsClearAllSnackbar": "All entries cleared",
+  "settingsLogOutConfirmTitle": "Log out?",
+  "settingsLogOutConfirmBody": "You'll need to sign back in to see your journal.",
+
+  "geminiNoKeyConfigured": "No key configured",
+  "geminiTesting": "Testing…",
+  "geminiConnected": "Connected",
+  "geminiConnectionFailed": "Connection failed",
+  "geminiNotTestedYet": "Not tested yet",
+  "geminiConnectionTitle": "Gemini Connection",
+  "geminiTestConnectionButton": "Test Connection",
+
+  "actionNo": "No",
+  "actionYesDelete": "Yes, delete",
+
+  "deletedHistoryFullTitle": "Deleted history is full",
+  "deletedHistoryFullBody": "This day's History already has {max} deleted entries. Restore or permanently delete some from History before deleting another.",
+  "@deletedHistoryFullBody": {
+    "placeholders": { "max": { "type": "int" } }
+  },
+  "entryDeleteConfirmTitle": "Delete entry?",
+  "entryDeleteConfirmBody": "Remove \"{title}\" from this day? You can restore it later from History.",
+  "@entryDeleteConfirmBody": {
+    "placeholders": { "title": { "type": "String" } }
+  },
+  "entryDeletedSnackbar": "Entry deleted",
+  "entryShowLess": "Show less",
+  "entryShowMore": "Show more",
+
+  "calendarNoEntriesYet": "No entries on this day yet.",
+
+  "journalNothingLoggedYet": "Nothing logged yet today.",
+  "journalDailySlots": "{count} of {max} daily slots",
+  "@journalDailySlots": {
+    "placeholders": { "count": { "type": "int" }, "max": { "type": "int" } }
+  },
+  "journalPhotosLabel": "Photos (Optional)",
+  "journalPhotosLabelCount": "Photos (Optional) · {count}/{max}",
+  "@journalPhotosLabelCount": {
+    "placeholders": { "count": { "type": "int" }, "max": { "type": "int" } }
+  },
+  "journalAddPhoto": "Add Photo",
+  "journalAddMorePhoto": "Add More",
+  "journalVoiceNoteButton": "Voice Note",
+  "journalTagsLabel": "Tags (Optional)",
+  "journalAddTagHint": "Add a tag",
+  "journalSaveButton": "Save Journal",
+  "journalEntrySavedSnackbar": "Entry saved to your journal 📖",
+  "journalPhotoCap": "Up to {max} photos per entry",
+  "@journalPhotoCap": {
+    "placeholders": { "max": { "type": "int" } }
+  },
+  "journalCustomTagCap": "Up to {max} custom tags",
+  "@journalCustomTagCap": {
+    "placeholders": { "max": { "type": "int" } }
+  },
+  "journalDeleteConfirmBody": "Remove \"{title}\" from your timeline? You can restore it later from History.",
+  "@journalDeleteConfirmBody": {
+    "placeholders": { "title": { "type": "String" } }
+  },
+
+  "journalReflectionFallback1": "What's one small thing that made you smile today?",
+  "journalReflectionFallback2": "What's something you're looking forward to?",
+  "journalReflectionFallback3": "Is there a moment today you'd like to remember?",
+  "journalReflectionFallback4": "What's weighing on your mind right now?",
+  "journalReflectionFallback5": "What's one thing you're grateful for today?",
+  "journalReflectionFallback6": "How did you take care of yourself today?",
+  "journalReflectionFallback7": "What would make tomorrow a little better?",
+
+  "actionShare": "Share",
+  "entryToday": "Today",
+  "entryShareTagsPrefix": "Tags: ",
+  "entrySavedSnackbar": "Entry saved",
+  "entryRestoredSnackbar": "Entry restored",
+  "entryNoLongerExists": "This entry no longer exists.",
+  "entryAddVoiceNote": "Add Voice Note",
+  "entryTagCap": "Up to {max} tags per entry",
+  "@entryTagCap": {
+    "placeholders": { "max": { "type": "int" } }
+  },
+  "entryNoReflectionYet": "No reflection yet — start writing when you're ready.",
+  "entryMomentsCaptured": "Moments Captured",
+  "entryMomentsCapturedCount": "Moments Captured · {count}/{max}",
+  "@entryMomentsCapturedCount": {
+    "placeholders": { "count": { "type": "int" }, "max": { "type": "int" } }
+  },
+  "entryEditTooltip": "Edit",
+  "entryNewTagHint": "New tag",
+
+  "insightsMoodJourneyTitle": "Your Mood Journey",
+  "insightsMoodJourneySubtitle": "Here's how you've been feeling this week. Remember, every feeling is valid.",
+  "insightsRecordedTimes": "{count, plural, =1{Recorded 1 time recently} other{Recorded {count} times recently}}",
+  "@insightsRecordedTimes": {
+    "placeholders": { "count": { "type": "num" } }
+  },
+  "insightsWelcomeBack": "Welcome back",
+  "insightsReminderOn": "Daily reminder turned on",
+  "insightsReminderOff": "Daily reminder turned off",
+  "insightsReminderOnTooltip": "Turn on daily reminder",
+  "insightsReminderOffTooltip": "Turn off daily reminder",
+  "insightsFeelingRightNow": "How are you feeling right now?",
+  "insightsCheckInNow": "Check in now",
+  "insightsTrackMoodSubtitle": "Track your mood to see patterns and get insights.",
+  "insightsGreetingMorning": "Good morning",
+  "insightsGreetingAfternoon": "Good afternoon",
+  "insightsGreetingEvening": "Good evening",
+  "insightsGreetingNight": "Good night",
+  "insightsLogMoreEntries": "Log a few more entries with activities to see patterns.",
+  "insightsCorrelationSentence": "You feel {mood} when you\n{activity}",
+  "@insightsCorrelationSentence": {
+    "placeholders": { "mood": { "type": "String" }, "activity": { "type": "String" } }
+  },
+  "insightsNoDataYet": "No data yet",
+  "insightsLogMoodToStart": "Log a mood to start seeing your trend.",
+  "insightsSummaryNeedMore": "Log a few more moods this week to start seeing a trend.",
+  "insightsSummaryTrendingUp": "Trending upward this week — nice momentum, keep it going.",
+  "insightsSummaryTougher": "A tougher stretch this week — be gentle with yourself.",
+  "insightsSummaryGreatWeek": "A genuinely great week overall — whatever you're doing, keep it up.",
+  "insightsSummaryHeavierWeek": "A heavier week than usual — might be worth some extra care.",
+  "insightsSummarySteady": "Pretty steady this week — nothing dramatic either way.",
+
+  "weeklyDetailTitle": "Weekly Detail",
+  "weeklyMoodOverview": "Mood Overview",
+  "weeklyDistributionTitle": "WEEKLY DISTRIBUTION",
+  "weeklyLogMoodBreakdown": "Log a mood this week to see a breakdown.",
+  "weeklyMoodCount": "{mood} ({count})",
+  "@weeklyMoodCount": {
+    "placeholders": { "mood": { "type": "String" }, "count": { "type": "int" } }
+  },
+  "weeklyMoodPercentageTitle": "MOOD PERCENTAGE",
+  "weeklyPositive": "Positive",
+  "weeklyNeutral": "Neutral",
+  "weeklyNegative": "Negative",
+  "weeklyKeyInsightTitle": "Key Insight",
+  "weeklyFallbackNoEntries": "Log a few entries this week to start seeing patterns.",
+  "weeklyFallbackSteady": "Pretty steady week — log a few more tagged entries and I'll start spotting real patterns.",
+  "weeklyInsightPhrase": "{percent}% {direction, select, better{better} other{worse}} on days you log \"{label}\"",
+  "@weeklyInsightPhrase": {
+    "placeholders": {
+      "percent": { "type": "int" },
+      "direction": { "type": "String" },
+      "label": { "type": "String" }
+    }
+  },
+  "weeklyInsightTailPositive": "worth leaning into.",
+  "weeklyInsightTailNegative": "might be worth noticing.",
+  "weeklyInsightSingle": "You feel {phrase} — {tail}",
+  "@weeklyInsightSingle": {
+    "placeholders": { "phrase": { "type": "String" }, "tail": { "type": "String" } }
+  },
+  "weeklyInsightBoth": "You feel {best}, but {worst}.",
+  "@weeklyInsightBoth": {
+    "placeholders": { "best": { "type": "String" }, "worst": { "type": "String" } }
+  },
+  "weeklyShareIntro": "My weekly mood detail from Moodlet 🧘",
+  "weeklyShareMoodCount": "{mood}: {count}",
+  "@weeklyShareMoodCount": {
+    "placeholders": { "mood": { "type": "String" }, "count": { "type": "int" } }
+  },
+
+  "deleteAccountTitle": "Account Settings",
+  "deleteAccountHeading": "Delete Account",
+  "deleteAccountBodyIntro": "We're sad to see you go. If you delete your account, your digital sanctuary will be permanently removed. ",
+  "deleteAccountBodyBold": "This action cannot be undone.",
+  "deleteAccountWhatYoullLose": "What you'll lose",
+  "deleteAccountJournalsTitle": "Journals",
+  "deleteAccountJournalsSubtitle": "All written entries and reflections",
+  "deleteAccountMoodHistoryTitle": "Mood History",
+  "deleteAccountMoodHistorySubtitle": "Your tracked emotional journey",
+  "deleteAccountInsightsTitle": "Personal Insights",
+  "deleteAccountInsightsSubtitle": "AI-generated patterns and summaries",
+  "deleteAccountConfirmPassword": "Confirm your password to continue",
+  "deleteAccountPasswordHint": "Enter your password",
+  "deleteAccountKeepButton": "Keep My Account",
+  "deleteAccountDeleteButton": "Delete My Account",
+
+  "tourInsightsTab": "See your mood trends and patterns here.",
+  "tourTodayTab": "Log how you're feeling, right now.",
+  "tourJournalTab": "Read and write your journal entries.",
+  "tourCalendarTab": "Browse any past day by date.",
+  "tourAuraFab": "Meet Aura — tap anytime for a supportive chat.",
+  "tourCheckInCard": "Or check in right from here, without leaving this screen.",
+  "tourJournalActions": "Add photos, voice notes, or tags to any entry.",
+  "tourSettingsIcon": "Preferences, privacy, and more live here.",
+  "settingsTakeTour": "Take a Tour"
 }

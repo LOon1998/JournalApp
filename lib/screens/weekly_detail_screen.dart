@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../models/journal_entry.dart';
+import '../theme/activity_icons.dart';
 import '../theme/app_theme.dart';
 import '../widgets/floating_card.dart';
 import 'insights_screen.dart';
@@ -46,6 +48,7 @@ class _WeeklyDetailScreenState extends State<WeeklyDetailScreen> with TickerProv
   Widget build(BuildContext context) {
     final entries = widget.entries;
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final now = DateTime.now();
     final last7Days =
         List.generate(7, (i) => DateTime(now.year, now.month, now.day).subtract(Duration(days: 6 - i)));
@@ -62,19 +65,19 @@ class _WeeklyDetailScreenState extends State<WeeklyDetailScreen> with TickerProv
       moodCounts[e.mood] = moodCounts[e.mood]! + 1;
     }
     final tagInsights = _computeTagInsights(weekEntries);
-    final insight = _insightSentence(weekEntries, tagInsights);
+    final insight = _insightSentence(context, weekEntries, tagInsights);
 
     return Scaffold(
       backgroundColor: scheme.surface,
       appBar: AppBar(
         centerTitle: true,
         leading: BackButton(color: scheme.primary),
-        title: Text('Weekly Detail', style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w700)),
+        title: Text(l10n.weeklyDetailTitle, style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w700)),
         actions: [
           IconButton(
             icon: Icon(Icons.ios_share, color: scheme.primary),
-            tooltip: 'Share',
-            onPressed: () => _share(weekEntries, moodCounts, insight),
+            tooltip: l10n.actionShare,
+            onPressed: () => _share(context, weekEntries, moodCounts, insight),
           ),
         ],
       ),
@@ -85,7 +88,7 @@ class _WeeklyDetailScreenState extends State<WeeklyDetailScreen> with TickerProv
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Mood Overview',
+                Text(l10n.weeklyMoodOverview,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 16),
                 Container(
@@ -94,7 +97,7 @@ class _WeeklyDetailScreenState extends State<WeeklyDetailScreen> with TickerProv
                   decoration:
                       BoxDecoration(color: scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(20)),
                   child: values.every((v) => v == null)
-                      ? Center(child: Text('No data yet', style: TextStyle(color: scheme.outlineVariant)))
+                      ? Center(child: Text(l10n.insightsNoDataYet, style: TextStyle(color: scheme.outlineVariant)))
                       : AnimatedBuilder(
                           animation: _countUpController,
                           // Same one-shot count-up as the Mood Percentage
@@ -124,7 +127,7 @@ class _WeeklyDetailScreenState extends State<WeeklyDetailScreen> with TickerProv
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       for (final day in last7Days)
-                        Text(weekdayAbbrev(day.weekday), style: TextStyle(fontSize: 11, color: scheme.outlineVariant)),
+                        Text(weekdayAbbrev(context, day), style: TextStyle(fontSize: 11, color: scheme.outlineVariant)),
                     ],
                   ),
                 ),
@@ -144,7 +147,7 @@ class _WeeklyDetailScreenState extends State<WeeklyDetailScreen> with TickerProv
                             decoration: BoxDecoration(shape: BoxShape.circle, color: mood.swatch),
                           ),
                           const SizedBox(width: 5),
-                          Text(mood.label, style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+                          Text(moodLabel(context, mood), style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
                         ],
                       ),
                   ],
@@ -157,11 +160,11 @@ class _WeeklyDetailScreenState extends State<WeeklyDetailScreen> with TickerProv
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('WEEKLY DISTRIBUTION',
+                Text(l10n.weeklyDistributionTitle,
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1, color: scheme.primary)),
                 const SizedBox(height: 16),
                 if (weekEntries.isEmpty)
-                  Text('Log a mood this week to see a breakdown.', style: TextStyle(color: scheme.onSurfaceVariant))
+                  Text(l10n.weeklyLogMoodBreakdown, style: TextStyle(color: scheme.onSurfaceVariant))
                 else ...[
                   ClipRRect(
                     borderRadius: BorderRadius.circular(999),
@@ -209,7 +212,7 @@ class _WeeklyDetailScreenState extends State<WeeklyDetailScreen> with TickerProv
                                 decoration: BoxDecoration(shape: BoxShape.circle, color: mood.swatch),
                               ),
                               const SizedBox(width: 5),
-                              Text('${mood.label} (${moodCounts[mood]})',
+                              Text(l10n.weeklyMoodCount(moodLabel(context, mood), moodCounts[mood]!),
                                   style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
                             ],
                           ),
@@ -224,11 +227,11 @@ class _WeeklyDetailScreenState extends State<WeeklyDetailScreen> with TickerProv
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('MOOD PERCENTAGE',
+                Text(l10n.weeklyMoodPercentageTitle,
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1, color: scheme.primary)),
                 const SizedBox(height: 16),
                 if (weekEntries.isEmpty)
-                  Text('Log a mood this week to see a breakdown.', style: TextStyle(color: scheme.onSurfaceVariant))
+                  Text(l10n.weeklyLogMoodBreakdown, style: TextStyle(color: scheme.onSurfaceVariant))
                 else
                   Row(
                     children: [
@@ -236,7 +239,7 @@ class _WeeklyDetailScreenState extends State<WeeklyDetailScreen> with TickerProv
                         child: _MoodPercentCard(
                           icon: Icons.sentiment_satisfied_alt,
                           color: const Color(0xFF2E7D32),
-                          label: 'Positive',
+                          label: l10n.weeklyPositive,
                           percent: _moodPercent(weekEntries, const [Mood.great, Mood.good]),
                           countUp: _countUpController,
                         ),
@@ -246,7 +249,7 @@ class _WeeklyDetailScreenState extends State<WeeklyDetailScreen> with TickerProv
                         child: _MoodPercentCard(
                           icon: Icons.sentiment_neutral,
                           color: const Color(0xFFB45309),
-                          label: 'Neutral',
+                          label: l10n.weeklyNeutral,
                           percent: _moodPercent(weekEntries, const [Mood.okay]),
                           countUp: _countUpController,
                         ),
@@ -256,7 +259,7 @@ class _WeeklyDetailScreenState extends State<WeeklyDetailScreen> with TickerProv
                         child: _MoodPercentCard(
                           icon: Icons.sentiment_dissatisfied,
                           color: scheme.error,
-                          label: 'Negative',
+                          label: l10n.weeklyNegative,
                           percent: _moodPercent(weekEntries, const [Mood.sad, Mood.awful]),
                           countUp: _countUpController,
                         ),
@@ -285,11 +288,11 @@ class _WeeklyDetailScreenState extends State<WeeklyDetailScreen> with TickerProv
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Key Insight',
+                      Text(l10n.weeklyKeyInsightTitle,
                           style: TextStyle(fontWeight: FontWeight.w700, color: scheme.onPrimaryContainer)),
                       const SizedBox(height: 4),
                       Text(
-                        _insightSentence(weekEntries, tagInsights),
+                        insight,
                         style: TextStyle(color: scheme.onPrimaryContainer, height: 1.4),
                       ),
                     ],
@@ -350,12 +353,13 @@ class _WeeklyDetailScreenState extends State<WeeklyDetailScreen> with TickerProv
   /// The line shown when there's no tag with enough repeats yet to rank —
   /// buckets the week's overall average mood into a general description
   /// instead of leaving the card blank.
-  String _fallbackSummary(List<JournalEntry> weekEntries) {
-    if (weekEntries.isEmpty) return 'Log a few entries this week to start seeing patterns.';
+  String _fallbackSummary(BuildContext context, List<JournalEntry> weekEntries) {
+    final l10n = AppLocalizations.of(context)!;
+    if (weekEntries.isEmpty) return l10n.weeklyFallbackNoEntries;
     final overallAvg = weekEntries.map((e) => moodScore[e.mood]!).reduce((a, b) => a + b) / weekEntries.length;
-    if (overallAvg >= 4) return "A genuinely great week overall — whatever you're doing, keep it up.";
-    if (overallAvg <= 2.5) return 'A heavier week than usual — might be worth some extra care.';
-    return "Pretty steady week — log a few more tagged entries and I'll start spotting real patterns.";
+    if (overallAvg >= 4) return l10n.insightsSummaryGreatWeek;
+    if (overallAvg <= 2.5) return l10n.insightsSummaryHeavierWeek;
+    return l10n.weeklyFallbackSteady;
   }
 
   /// The single Key Insight sentence — names both the week's best- and
@@ -365,29 +369,32 @@ class _WeeklyDetailScreenState extends State<WeeklyDetailScreen> with TickerProv
   /// summary when there's no tag with enough repeats yet to say anything
   /// more specific, or names just the one tag when only one qualifies.
   String _insightSentence(
+    BuildContext context,
     List<JournalEntry> weekEntries,
     List<({String label, int count, int percent})> tagInsights,
   ) {
-    if (tagInsights.isEmpty) return _fallbackSummary(weekEntries);
+    final l10n = AppLocalizations.of(context)!;
+    if (tagInsights.isEmpty) return _fallbackSummary(context, weekEntries);
 
-    String phrase(({String label, int count, int percent}) t) =>
-        '${t.percent.abs()}% ${t.percent >= 0 ? 'better' : 'worse'} on days you log "${t.label}"';
+    String phrase(({String label, int count, int percent}) t) => l10n.weeklyInsightPhrase(
+        t.percent.abs(), t.percent >= 0 ? 'better' : 'worse', activityLabel(context, t.label));
 
     final best = tagInsights.first;
     final worst = tagInsights.last;
     if (best.label == worst.label) {
-      final tail = best.percent >= 0 ? 'worth leaning into.' : 'might be worth noticing.';
-      return 'You feel ${phrase(best)} — $tail';
+      final tail = best.percent >= 0 ? l10n.weeklyInsightTailPositive : l10n.weeklyInsightTailNegative;
+      return l10n.weeklyInsightSingle(phrase(best), tail);
     }
-    return 'You feel ${phrase(best)}, but ${phrase(worst)}.';
+    return l10n.weeklyInsightBoth(phrase(best), phrase(worst));
   }
 
-  void _share(List<JournalEntry> weekEntries, Map<Mood, int> moodCounts, String insight) {
+  void _share(BuildContext context, List<JournalEntry> weekEntries, Map<Mood, int> moodCounts, String insight) {
+    final l10n = AppLocalizations.of(context)!;
     final counts = [
       for (final mood in Mood.values)
-        if (moodCounts[mood]! > 0) '${mood.label}: ${moodCounts[mood]}',
+        if (moodCounts[mood]! > 0) l10n.weeklyShareMoodCount(moodLabel(context, mood), moodCounts[mood]!),
     ].join(', ');
-    Share.share('My weekly mood detail from Moodlet 🧘\n\n$counts\n\n$insight', subject: 'Weekly Detail');
+    Share.share('${l10n.weeklyShareIntro}\n\n$counts\n\n$insight', subject: l10n.weeklyDetailTitle);
   }
 }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../app_info.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../widgets/app_snackbar.dart';
 import '../widgets/floating_card.dart';
 
@@ -18,7 +19,7 @@ class HelpSupportScreen extends StatelessWidget {
     final uri = Uri(scheme: 'mailto', path: supportEmail, queryParameters: {'subject': 'Moodlet Support'});
     final launched = await launchUrl(uri);
     if (!launched && context.mounted) {
-      showAppSnackBar(context, "Couldn't open your email app — you can reach us at $supportEmail");
+      showAppSnackBar(context, AppLocalizations.of(context)!.helpSupportEmailFailed(supportEmail));
     }
   }
 
@@ -26,8 +27,9 @@ class HelpSupportScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('Help & Support')),
+      appBar: AppBar(title: Text(l10n.settingsHelpSupport)),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
@@ -43,11 +45,11 @@ class HelpSupportScreen extends StatelessWidget {
                     child: Icon(Icons.waving_hand_outlined, size: 32, color: scheme.primary),
                   ),
                   const SizedBox(height: 16),
-                  Text("We're here to help",
+                  Text(l10n.helpSupportHeroTitle,
                       style: textTheme.headlineSmall?.copyWith(color: scheme.primary, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
                   Text(
-                    'A couple of quick answers below — or reach out directly and we\'ll get back to you.',
+                    l10n.helpSupportHeroSubtitle,
                     textAlign: TextAlign.center,
                     style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
                   ),
@@ -55,21 +57,11 @@ class HelpSupportScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 28),
-            Text('Frequently Asked Questions',
+            Text(l10n.helpSupportFaqTitle,
                 style: textTheme.titleMedium?.copyWith(color: scheme.primary, fontWeight: FontWeight.w700)),
             const SizedBox(height: 12),
-            const _FaqTile(
-              question: 'Is my data secured?',
-              answer: 'Yes — your account and journal are protected by Firebase Authentication and Cloud '
-                  'Firestore, with access rules that restrict your data to your own signed-in account only. '
-                  'See the Privacy Policy (About Moodlet) for the full details.',
-            ),
-            const _FaqTile(
-              question: 'Can I use Moodlet on multiple devices?',
-              answer: 'Yes — sign in with the same account on any device and your journal, mood history, and '
-                  "settings will all be right there. Pattern Lock is the only "
-                  "exception — it's set per-device, so you'll set it up again on a new one.",
-            ),
+            _FaqTile(question: l10n.helpSupportFaq1Q, answer: l10n.helpSupportFaq1A),
+            _FaqTile(question: l10n.helpSupportFaq2Q, answer: l10n.helpSupportFaq2A),
             const SizedBox(height: 28),
             FloatingCard(
               onTap: () => _emailSupport(context),
@@ -87,9 +79,9 @@ class HelpSupportScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Still need a hand?', style: TextStyle(fontWeight: FontWeight.w700)),
+                        Text(l10n.helpSupportStillNeedHand, style: const TextStyle(fontWeight: FontWeight.w700)),
                         const SizedBox(height: 2),
-                        Text('Email us — $supportEmail',
+                        Text(l10n.helpSupportEmailUs(supportEmail),
                             style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant)),
                       ],
                     ),

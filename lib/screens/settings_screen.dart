@@ -33,21 +33,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // live maxLength on some devices.
   static const _maxNameLength = AppState.maxUserNameLength;
 
-  late final _geminiKeyController = TextEditingController(text: AppStateScope.of(context).geminiApiKey);
-  bool _obscureGeminiKey = true;
-
   _GeminiConnStatus _connStatus = _GeminiConnStatus.unknown;
   String? _connError;
-
-  void _saveGeminiKey(AppState appState) {
-    appState.setGeminiApiKey(_geminiKeyController.text);
-    FocusScope.of(context).unfocus();
-    showAppSnackBar(context, _geminiKeyController.text.trim().isEmpty ? 'Gemini API key cleared' : 'Gemini API key saved');
-    // Saving a new key invalidates whatever the last test found —
-    // otherwise a stale "Connected" could sit there next to a key that
-    // was just changed and never actually re-tested.
-    setState(() => _connStatus = _GeminiConnStatus.unknown);
-  }
 
   Future<void> _testGeminiConnection(String apiKey) async {
     setState(() {
@@ -65,12 +52,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _connError = e.message;
       });
     }
-  }
-
-  @override
-  void dispose() {
-    _geminiKeyController.dispose();
-    super.dispose();
   }
 
   @override
@@ -99,7 +80,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               IconButton(
                 icon: Icon(Icons.close, color: scheme.primary),
                 onPressed: () => Navigator.of(context).maybePop(),
-                tooltip: 'Close',
+                tooltip: l10n.actionClose,
               ),
             ],
           ),
@@ -116,7 +97,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       .headlineSmall
                       ?.copyWith(color: scheme.primary, fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
-              Text('Customize your digital hug.', style: TextStyle(color: scheme.onSurfaceVariant)),
+              Text(l10n.settingsSubtitle, style: TextStyle(color: scheme.onSurfaceVariant)),
             ],
           ),
           const SizedBox(height: 24),
@@ -177,7 +158,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       OutlinedButton(
                         onPressed: () => _editProfilePhoto(context, appState),
                         style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6)),
-                        child: const Text('Edit Photo', style: TextStyle(fontSize: 13)),
+                        child: Text(l10n.settingsEditPhoto, style: const TextStyle(fontSize: 13)),
                       ),
                     ],
                   ),
@@ -193,7 +174,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Row(children: [
                   Icon(Icons.palette, color: scheme.primary),
                   const SizedBox(width: 8),
-                  Text('Appearance', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: scheme.primary, fontWeight: FontWeight.w600)),
+                  Text(l10n.settingsAppearance, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: scheme.primary, fontWeight: FontWeight.w600)),
                 ]),
                 const SizedBox(height: 16),
                 Center(
@@ -207,7 +188,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Expanded(
                             child: _ModeButton(
                               icon: Icons.light_mode,
-                              label: 'Light',
+                              label: l10n.settingsLight,
                               selected: appState.themeMode == ThemeMode.light,
                               onTap: () => appState.setThemeMode(ThemeMode.light),
                             ),
@@ -215,7 +196,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Expanded(
                             child: _ModeButton(
                               icon: Icons.dark_mode,
-                              label: 'Dark',
+                              label: l10n.settingsDark,
                               selected: appState.themeMode == ThemeMode.dark,
                               onTap: () => appState.setThemeMode(ThemeMode.dark),
                             ),
@@ -236,61 +217,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Row(children: [
                   Icon(Icons.smart_toy, color: scheme.primary),
                   const SizedBox(width: 8),
-                  Text('AI Companion', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: scheme.primary, fontWeight: FontWeight.w600)),
+                  Text(l10n.settingsAiCompanion, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: scheme.primary, fontWeight: FontWeight.w600)),
                 ]),
                 const SizedBox(height: 12),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   value: appState.auraEnabled,
                   onChanged: appState.setAuraEnabled,
-                  title: const Text('Enable Aura'),
-                  subtitle: const Text('Let the floating Aura chatbot accompany you.'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          FloatingCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Icon(Icons.insights, color: scheme.primary),
-                  const SizedBox(width: 8),
-                  Text('AI Insights', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: scheme.primary, fontWeight: FontWeight.w600)),
-                ]),
-                const SizedBox(height: 4),
-                Text(
-                  "Powers the sparkle button on Insights' Weekly Trend chart. Get a "
-                  'free key at aistudio.google.com — stored only on this device, never '
-                  "uploaded anywhere but Google's API when you tap it.",
-                  style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _geminiKeyController,
-                  obscureText: _obscureGeminiKey,
-                  style: const TextStyle(fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: 'Gemini API key',
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(_obscureGeminiKey ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                              size: 20),
-                          onPressed: () => setState(() => _obscureGeminiKey = !_obscureGeminiKey),
-                          tooltip: _obscureGeminiKey ? 'Show key' : 'Hide key',
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.check_circle, color: scheme.primary),
-                          onPressed: () => _saveGeminiKey(appState),
-                          tooltip: 'Save',
-                        ),
-                      ],
-                    ),
-                  ),
-                  onSubmitted: (_) => _saveGeminiKey(appState),
+                  title: Text(l10n.settingsEnableAura),
+                  subtitle: Text(l10n.settingsEnableAuraSubtitle),
                 ),
               ],
             ),
@@ -320,7 +255,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(_languageLabel(appState.languageCode), style: TextStyle(color: scheme.onSurfaceVariant)),
+                      Text(_languageLabel(context, appState.languageCode), style: TextStyle(color: scheme.onSurfaceVariant)),
                       const SizedBox(width: 4),
                       const Icon(Icons.chevron_right),
                     ],
@@ -344,6 +279,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 ListTile(
+                  leading: const Icon(Icons.tour_outlined),
+                  title: Text(l10n.settingsTakeTour),
+                  trailing: const Icon(Icons.chevron_right),
+                  // Signal-and-pop, not a direct call — the tour highlights
+                  // widgets that live on HomeShell (bottom nav, Aura, the
+                  // check-in card, ...), not this screen, so it can only
+                  // actually run once we're back there. HomeShell's own
+                  // build() picks this up via takeTourReplayRequested().
+                  onTap: () {
+                    appState.requestTourReplay();
+                    Navigator.of(context).maybePop();
+                  },
+                ),
+                ListTile(
                   leading: const Icon(Icons.info),
                   title: Text(l10n.settingsAboutLumina),
                   trailing: const Icon(Icons.chevron_right),
@@ -363,7 +312,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Row(children: [
                   Icon(Icons.bug_report_outlined, color: scheme.tertiary),
                   const SizedBox(width: 8),
-                  Text('Testing Tools',
+                  Text(l10n.settingsTestingTools,
                       style: Theme.of(context)
                           .textTheme
                           .titleMedium
@@ -371,7 +320,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ]),
                 const SizedBox(height: 4),
                 Text(
-                  "Not a real feature — just here to make QA-ing today's UI states easier.",
+                  l10n.settingsTestingToolsSubtitle,
                   style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 12),
@@ -382,22 +331,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     OutlinedButton.icon(
                       onPressed: () => _confirmClearToday(context, appState),
                       icon: const Icon(Icons.restart_alt, size: 18),
-                      label: const Text("Clear Today's Entries"),
+                      label: Text(l10n.settingsClearTodayButton),
                     ),
                     OutlinedButton.icon(
                       onPressed: () {
                         appState.seedPastWeekForTesting();
-                        showAppSnackBar(context, "Added a week's worth of test entries");
+                        showAppSnackBar(context, l10n.settingsFillPastWeekSnackbar);
                       },
                       icon: const Icon(Icons.calendar_month_outlined, size: 18),
-                      label: const Text('Fill Past 7 Days'),
+                      label: Text(l10n.settingsFillPastWeek),
                     ),
                     OutlinedButton.icon(
                       onPressed: () => _confirmClearAll(context, appState),
                       style: OutlinedButton.styleFrom(
                           foregroundColor: scheme.error, side: BorderSide(color: scheme.error)),
                       icon: const Icon(Icons.delete_forever_outlined, size: 18),
-                      label: const Text('Clear All Entries'),
+                      label: Text(l10n.settingsClearAllButton),
                     ),
                     // Web can't show real notifications at all (see
                     // NotificationService's doc) — hidden there rather
@@ -408,10 +357,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onPressed: () async {
                           await NotificationService.showTestNotification();
                           if (!context.mounted) return;
-                          showAppSnackBar(context, 'Test notification sent — check your notification shade');
+                          showAppSnackBar(context, l10n.settingsTestNotificationSnackbar);
                         },
                         icon: const Icon(Icons.notifications_active_outlined, size: 18),
-                        label: const Text('Test Notification'),
+                        label: Text(l10n.settingsTestNotification),
                       ),
                   ],
                 ),
@@ -450,7 +399,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 MaterialPageRoute(builder: (_) => const DeleteAccountScreen()),
               ),
               style: TextButton.styleFrom(foregroundColor: scheme.error),
-              child: const Text('Delete Account', style: TextStyle(fontSize: 13)),
+              child: Text(l10n.settingsDeleteAccount, style: const TextStyle(fontSize: 13)),
             ),
           ),
         ],
@@ -461,22 +410,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// null (the default) means "follow the device's own language" — shown
   /// as "System" rather than silently picking English, so it's clear
   /// that's an active choice too, not the absence of one.
-  String _languageLabel(String? code) {
+  String _languageLabel(BuildContext context, String? code) {
     switch (code) {
       case 'zh':
         return '中文';
       case 'en':
         return 'English';
       default:
-        return 'System';
+        return AppLocalizations.of(context)!.languageSystem;
     }
   }
 
   Future<void> _pickLanguage(BuildContext context, AppState appState) async {
+    final l10n = AppLocalizations.of(context)!;
     final code = await showDialog<String?>(
       context: context,
       builder: (context) => SimpleDialog(
-        title: const Text('Language'),
+        title: Text(l10n.settingsLanguage),
         children: [
           RadioGroup<String?>(
             groupValue: appState.languageCode,
@@ -485,7 +435,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 for (final option in const [null, 'en', 'zh'])
-                  RadioListTile<String?>(value: option, title: Text(_languageLabel(option))),
+                  RadioListTile<String?>(value: option, title: Text(_languageLabel(context, option))),
               ],
             ),
           ),
@@ -505,11 +455,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// just a local rename.
   Future<void> _editName(BuildContext context, AppState appState) async {
     debugPrint('SettingsScreen._editName: dialog opening, current name is "${appState.userName}"');
+    final l10n = AppLocalizations.of(context)!;
     final controller = TextEditingController(text: appState.userName);
     final newName = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Edit name'),
+        title: Text(l10n.settingsEditNameDialogTitle),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -520,14 +471,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // which lets typing go past the limit temporarily instead of
           // hard-stopping at it like every other platform already does.
           maxLengthEnforcement: MaxLengthEnforcement.enforced,
-          decoration: const InputDecoration(hintText: 'Your name', counterText: ''),
+          decoration: InputDecoration(hintText: l10n.settingsNameHint, counterText: ''),
           onSubmitted: (value) => Navigator.pop(context, value),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.actionCancel)),
           TextButton(
             onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Save'),
+            child: Text(l10n.actionSave),
           ),
         ],
       ),
@@ -556,6 +507,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// photo set — that third case doesn't apply to entry photos, so it's
   /// a local sheet here rather than a change to that shared one.
   Future<void> _editProfilePhoto(BuildContext context, AppState appState) async {
+    final l10n = AppLocalizations.of(context)!;
     final action = await showModalBottomSheet<String>(
       context: context,
       builder: (context) => SafeArea(
@@ -564,18 +516,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Take Photo'),
+              title: Text(l10n.settingsTakePhoto),
               onTap: () => Navigator.pop(context, 'camera'),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from Gallery'),
+              title: Text(l10n.settingsChooseFromGallery),
               onTap: () => Navigator.pop(context, 'gallery'),
             ),
             if (appState.profilePhotoBase64 != null)
               ListTile(
                 leading: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
-                title: Text('Remove Photo', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                title: Text(l10n.settingsRemovePhoto, style: TextStyle(color: Theme.of(context).colorScheme.error)),
                 onTap: () => Navigator.pop(context, 'remove'),
               ),
           ],
@@ -599,47 +551,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _confirmClearToday(BuildContext context, AppState appState) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Clear today's entries?"),
-        content: const Text(
-            "Soft-deletes every entry logged today (they're recoverable from History, same as swipe-delete) — lets you re-test things like the Insights check-in card that only show when today has nothing logged yet."),
+        title: Text(l10n.settingsClearTodayConfirmTitle),
+        content: Text(l10n.settingsClearTodayConfirmBody),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l10n.actionCancel)),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Clear', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            child: Text(l10n.actionClear, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ),
         ],
       ),
     );
     if (confirmed == true && context.mounted) {
       appState.clearTodayEntriesForTesting();
-      showAppSnackBar(context, "Today's entries cleared");
+      showAppSnackBar(context, l10n.settingsClearTodaySnackbar);
     }
   }
 
   void _confirmClearAll(BuildContext context, AppState appState) async {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Clear every entry?'),
-        content: const Text(
-            "Permanently wipes every entry — live and already in Deleted History alike — for a genuinely clean slate. Unlike \"Clear Today's Entries,\" this can't be undone."),
+        title: Text(l10n.settingsClearAllConfirmTitle),
+        content: Text(l10n.settingsClearAllConfirmBody),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l10n.actionCancel)),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Clear Everything', style: TextStyle(color: scheme.error)),
+            child: Text(l10n.settingsClearAllConfirmButton, style: TextStyle(color: scheme.error)),
           ),
         ],
       ),
     );
     if (confirmed == true && context.mounted) {
       appState.clearAllEntriesForTesting();
-      showAppSnackBar(context, 'All entries cleared');
+      showAppSnackBar(context, l10n.settingsClearAllSnackbar);
     }
   }
 
@@ -649,8 +601,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Log out?'),
-        content: const Text("You'll need to sign back in to see your journal."),
+        title: Text(l10n.settingsLogOutConfirmTitle),
+        content: Text(l10n.settingsLogOutConfirmBody),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.actionCancel)),
           TextButton(
@@ -725,15 +677,16 @@ class _GeminiConnectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final appState = AppStateScope.of(context);
     final effectiveKey = resolveGeminiApiKey(appState.geminiApiKey);
 
     final (IconData icon, Color color, String label) = switch (connStatus) {
-      _ when effectiveKey == null => (Icons.key_off_outlined, scheme.onSurfaceVariant, 'No key configured'),
-      _GeminiConnStatus.testing => (Icons.sync, scheme.onSurfaceVariant, 'Testing…'),
-      _GeminiConnStatus.connected => (Icons.check_circle, Colors.green, 'Connected'),
-      _GeminiConnStatus.failed => (Icons.error_outline, scheme.error, 'Connection failed'),
-      _GeminiConnStatus.unknown => (Icons.help_outline, scheme.onSurfaceVariant, 'Not tested yet'),
+      _ when effectiveKey == null => (Icons.key_off_outlined, scheme.onSurfaceVariant, l10n.geminiNoKeyConfigured),
+      _GeminiConnStatus.testing => (Icons.sync, scheme.onSurfaceVariant, l10n.geminiTesting),
+      _GeminiConnStatus.connected => (Icons.check_circle, Colors.green, l10n.geminiConnected),
+      _GeminiConnStatus.failed => (Icons.error_outline, scheme.error, l10n.geminiConnectionFailed),
+      _GeminiConnStatus.unknown => (Icons.help_outline, scheme.onSurfaceVariant, l10n.geminiNotTestedYet),
     };
 
     return FloatingCard(
@@ -743,7 +696,7 @@ class _GeminiConnectionCard extends StatelessWidget {
           Row(children: [
             Icon(Icons.cloud_outlined, color: scheme.primary),
             const SizedBox(width: 8),
-            Text('Gemini Connection',
+            Text(l10n.geminiConnectionTitle,
                 style: Theme.of(context)
                     .textTheme
                     .titleMedium
@@ -766,7 +719,7 @@ class _GeminiConnectionCard extends StatelessWidget {
             onPressed:
                 effectiveKey == null || connStatus == _GeminiConnStatus.testing ? null : () => onTest(effectiveKey),
             icon: const Icon(Icons.wifi_tethering, size: 18),
-            label: const Text('Test Connection'),
+            label: Text(l10n.geminiTestConnectionButton),
           ),
         ],
       ),

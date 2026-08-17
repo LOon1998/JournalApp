@@ -1,8 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:showcaseview/showcaseview.dart';
 import '../data/app_state.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../screens/settings_screen.dart';
+import '../services/app_tour.dart';
 
 /// The `<header>` shared by every screen, in one of two layouts:
 ///
@@ -35,6 +38,7 @@ class LuminaTopBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final appState = AppStateScope.of(context);
+    final l10n = AppLocalizations.of(context)!;
 
     void openSettings() => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const SettingsScreen()),
@@ -83,13 +87,18 @@ class LuminaTopBar extends StatelessWidget implements PreferredSizeWidget {
             Icons.bubble_chart,
             color: appState.auraEnabled ? scheme.primary : scheme.outlineVariant,
           ),
-          tooltip: appState.auraEnabled ? 'Hide Aura companion' : 'Show Aura companion',
+          tooltip: appState.auraEnabled ? l10n.topBarHideAura : l10n.topBarShowAura,
         ),
-        IconButton(
-          visualDensity: VisualDensity.compact,
-          onPressed: openSettings,
-          icon: Icon(Icons.settings, color: scheme.primary),
-          tooltip: 'Settings',
+        Showcase(
+          key: TourKeys.settingsIcon,
+          description: AppTour.settingsIconText(context),
+          targetShapeBorder: const CircleBorder(),
+          child: IconButton(
+            visualDensity: VisualDensity.compact,
+            onPressed: openSettings,
+            icon: Icon(Icons.settings, color: scheme.primary),
+            tooltip: l10n.settingsTitle,
+          ),
         ),
       ],
     );

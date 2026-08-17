@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/generated/app_localizations.dart';
 import '../services/app_lock_service.dart';
 import '../services/auth_service.dart';
 import '../widgets/app_snackbar.dart';
@@ -61,14 +62,15 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   Future<void> _removePattern() async {
     final service = _lockService;
     if (service == null) return;
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Remove Pattern Lock?'),
-        content: const Text("You'll no longer need a pattern to open Moodlet."),
+        title: Text(l10n.privacySecurityRemoveDialogTitle),
+        content: Text(l10n.privacySecurityRemoveDialogBody),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Remove')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.actionCancel)),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(l10n.actionRemove)),
         ],
       ),
     );
@@ -76,10 +78,11 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
     await service.clearPattern();
     if (!mounted) return;
     setState(() => _hasPattern = false);
-    showAppSnackBar(context, 'Pattern Lock removed');
+    showAppSnackBar(context, l10n.privacySecurityPatternRemovedSnackbar);
   }
 
   void _handlePatternTap() {
+    final l10n = AppLocalizations.of(context)!;
     if (_hasPattern) {
       showModalBottomSheet(
         context: context,
@@ -87,7 +90,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
           child: Wrap(children: [
             ListTile(
               leading: const Icon(Icons.pattern),
-              title: const Text('Change Pattern'),
+              title: Text(l10n.privacySecurityChangePattern),
               onTap: () {
                 Navigator.of(ctx).pop();
                 _openPatternSetup();
@@ -95,7 +98,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.pattern_outlined),
-              title: const Text('Remove Pattern'),
+              title: Text(l10n.privacySecurityRemovePattern),
               onTap: () {
                 Navigator.of(ctx).pop();
                 _removePattern();
@@ -112,8 +115,9 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('Privacy & Security')),
+      appBar: AppBar(title: Text(l10n.settingsPrivacySecurity)),
       body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator())
@@ -123,7 +127,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Keep your journal for your eyes only — protect your account and lock the app on this device.',
+                      l10n.privacySecurityIntro,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
                     ),
                     const SizedBox(height: 20),
@@ -136,7 +140,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                             child: Row(children: [
                               Icon(Icons.security, color: scheme.primary),
                               const SizedBox(width: 8),
-                              Text('Account Security',
+                              Text(l10n.privacySecurityAccountSecurity,
                                   style: Theme.of(context)
                                       .textTheme
                                       .titleMedium
@@ -145,7 +149,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                           ),
                           ListTile(
                             leading: const Icon(Icons.lock_outline),
-                            title: const Text('Change Password'),
+                            title: Text(l10n.changePasswordTitle),
                             trailing: const Icon(Icons.chevron_right),
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
@@ -153,8 +157,8 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                           ),
                           ListTile(
                             leading: const Icon(Icons.pattern),
-                            title: const Text('Pattern Lock'),
-                            subtitle: Text(_hasPattern ? 'On' : 'Not set'),
+                            title: Text(l10n.privacySecurityPatternLockRow),
+                            subtitle: Text(_hasPattern ? l10n.privacySecurityOn : l10n.privacySecurityNotSet),
                             trailing: const Icon(Icons.chevron_right),
                             onTap: _handlePatternTap,
                           ),

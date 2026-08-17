@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import '../data/app_state.dart';
+import '../l10n/generated/app_localizations.dart';
 
 /// Shown once, right after a brand-new account finishes signing up (see
 /// AuthService.consumeJustSignedUp) — never on a returning sign-in. Matches
@@ -20,6 +21,7 @@ class WelcomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context)!;
     final photoBase64 = AppStateScope.of(context).profilePhotoBase64;
 
     return Scaffold(
@@ -48,13 +50,13 @@ class WelcomeScreen extends StatelessWidget {
                     child: photoBase64 == null ? Icon(Icons.self_improvement, size: 88, color: scheme.onPrimaryContainer) : null,
                   ),
                   const SizedBox(height: 32),
-                  Text("You're all set, Friend!",
+                  Text(l10n.welcomeTitle,
                       textAlign: TextAlign.center,
                       style:
                           textTheme.headlineMedium?.copyWith(color: scheme.primary, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 12),
                   Text(
-                    "Welcome to your new digital hug — a private space that's yours alone. Whenever you're ready, let's take a moment for yourself.",
+                    l10n.welcomeSubtitle,
                     textAlign: TextAlign.center,
                     style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 16, height: 1.5),
                   ),
@@ -69,7 +71,7 @@ class WelcomeScreen extends StatelessWidget {
                         children: [
                           const Icon(Icons.self_improvement, size: 20),
                           const SizedBox(width: 8),
-                          Text('Start My First Check-in',
+                          Text(l10n.welcomeStartButton,
                               style: textTheme.titleMedium?.copyWith(color: scheme.onPrimary, fontWeight: FontWeight.w700)),
                         ],
                       ),
