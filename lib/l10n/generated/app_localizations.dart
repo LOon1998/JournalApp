@@ -1376,12 +1376,6 @@ abstract class AppLocalizations {
   /// **'Clear'**
   String get actionClear;
 
-  /// No description provided for @languageSystem.
-  ///
-  /// In en, this message translates to:
-  /// **'System'**
-  String get languageSystem;
-
   /// No description provided for @settingsSubtitle.
   ///
   /// In en, this message translates to:
@@ -1573,78 +1567,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You\'ll need to sign back in to see your journal.'**
   String get settingsLogOutConfirmBody;
-
-  /// No description provided for @geminiNoKeyConfigured.
-  ///
-  /// In en, this message translates to:
-  /// **'No key configured'**
-  String get geminiNoKeyConfigured;
-
-  /// No description provided for @geminiTesting.
-  ///
-  /// In en, this message translates to:
-  /// **'Testing…'**
-  String get geminiTesting;
-
-  /// No description provided for @geminiConnected.
-  ///
-  /// In en, this message translates to:
-  /// **'Connected'**
-  String get geminiConnected;
-
-  /// No description provided for @geminiConnectionFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Connection failed'**
-  String get geminiConnectionFailed;
-
-  /// No description provided for @geminiNotTestedYet.
-  ///
-  /// In en, this message translates to:
-  /// **'Not tested yet'**
-  String get geminiNotTestedYet;
-
-  /// No description provided for @geminiConnectionTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Gemini Connection'**
-  String get geminiConnectionTitle;
-
-  /// No description provided for @geminiTestConnectionButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Test Connection'**
-  String get geminiTestConnectionButton;
-
-  /// No description provided for @geminiApiKeyLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Gemini API Key'**
-  String get geminiApiKeyLabel;
-
-  /// No description provided for @geminiApiKeyHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Paste your API key'**
-  String get geminiApiKeyHint;
-
-  /// No description provided for @geminiApiKeySaveButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Save'**
-  String get geminiApiKeySaveButton;
-
-  /// No description provided for @geminiApiKeySavedSnackbar.
-  ///
-  /// In en, this message translates to:
-  /// **'API key saved'**
-  String get geminiApiKeySavedSnackbar;
-
-  /// No description provided for @geminiGetApiKeyLink.
-  ///
-  /// In en, this message translates to:
-  /// **'Get a free API key'**
-  String get geminiGetApiKeyLink;
 
   /// No description provided for @entryShareCaption.
   ///

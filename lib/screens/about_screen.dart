@@ -10,7 +10,7 @@ import 'privacy_policy_screen.dart';
 /// on every build — that's what actually changes build to build, so it's
 /// what makes this readable in-app as confirmation of which build is
 /// currently installed.
-const _appVersion = '1.0.0 (52)';
+const _appVersion = '1.0.0 (54)';
 
 /// Reached from Settings' "About Moodlet" row — brand story, core values,
 /// and version/legal info. Matches the provided web mockup's layout and

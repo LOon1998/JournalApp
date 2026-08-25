@@ -240,8 +240,6 @@
   "auraHintBubble": "想聊聊吗？我在这里陪着你。",
 
   "actionClear": "清空",
-  "languageSystem": "跟随系统",
-
   "settingsSubtitle": "定制你的专属港湾。",
   "settingsEditPhoto": "编辑照片",
   "settingsAppearance": "外观",
@@ -274,19 +272,6 @@
   "settingsClearAllSnackbar": "全部记录已清空",
   "settingsLogOutConfirmTitle": "退出登录？",
   "settingsLogOutConfirmBody": "你需要重新登录才能查看你的日记。",
-
-  "geminiNoKeyConfigured": "未配置密钥",
-  "geminiTesting": "测试中…",
-  "geminiConnected": "已连接",
-  "geminiConnectionFailed": "连接失败",
-  "geminiNotTestedYet": "尚未测试",
-  "geminiConnectionTitle": "Gemini 连接",
-  "geminiTestConnectionButton": "测试连接",
-  "geminiApiKeyLabel": "Gemini API 密钥",
-  "geminiApiKeyHint": "粘贴你的 API 密钥",
-  "geminiApiKeySaveButton": "保存",
-  "geminiApiKeySavedSnackbar": "API 密钥已保存",
-  "geminiGetApiKeyLink": "获取免费 API 密钥",
 
   "entryShareCaption": "我的心情记录 —— 通过 Moodlet 分享 🌙",
 

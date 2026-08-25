@@ -297,8 +297,6 @@
   "auraHintBubble": "Need to talk? I'm here for you.",
 
   "actionClear": "Clear",
-  "languageSystem": "System",
-
   "settingsSubtitle": "Customize your digital hug.",
   "settingsEditPhoto": "Edit Photo",
   "settingsAppearance": "Appearance",
@@ -331,19 +329,6 @@
   "settingsClearAllSnackbar": "All entries cleared",
   "settingsLogOutConfirmTitle": "Log out?",
   "settingsLogOutConfirmBody": "You'll need to sign back in to see your journal.",
-
-  "geminiNoKeyConfigured": "No key configured",
-  "geminiTesting": "Testing…",
-  "geminiConnected": "Connected",
-  "geminiConnectionFailed": "Connection failed",
-  "geminiNotTestedYet": "Not tested yet",
-  "geminiConnectionTitle": "Gemini Connection",
-  "geminiTestConnectionButton": "Test Connection",
-  "geminiApiKeyLabel": "Gemini API Key",
-  "geminiApiKeyHint": "Paste your API key",
-  "geminiApiKeySaveButton": "Save",
-  "geminiApiKeySavedSnackbar": "API key saved",
-  "geminiGetApiKeyLink": "Get a free API key",
 
   "entryShareCaption": "My mood insight — shared with Moodlet 🌙",
 

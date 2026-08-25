@@ -731,9 +731,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get actionClear => 'Clear';
 
   @override
-  String get languageSystem => 'System';
-
-  @override
   String get settingsSubtitle => 'Customize your digital hug.';
 
   @override
@@ -836,42 +833,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settingsLogOutConfirmBody =>
       'You\'ll need to sign back in to see your journal.';
-
-  @override
-  String get geminiNoKeyConfigured => 'No key configured';
-
-  @override
-  String get geminiTesting => 'Testing…';
-
-  @override
-  String get geminiConnected => 'Connected';
-
-  @override
-  String get geminiConnectionFailed => 'Connection failed';
-
-  @override
-  String get geminiNotTestedYet => 'Not tested yet';
-
-  @override
-  String get geminiConnectionTitle => 'Gemini Connection';
-
-  @override
-  String get geminiTestConnectionButton => 'Test Connection';
-
-  @override
-  String get geminiApiKeyLabel => 'Gemini API Key';
-
-  @override
-  String get geminiApiKeyHint => 'Paste your API key';
-
-  @override
-  String get geminiApiKeySaveButton => 'Save';
-
-  @override
-  String get geminiApiKeySavedSnackbar => 'API key saved';
-
-  @override
-  String get geminiGetApiKeyLink => 'Get a free API key';
 
   @override
   String get entryShareCaption => 'My mood insight — shared with Moodlet 🌙';

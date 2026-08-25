@@ -57,9 +57,10 @@ class LuminaApp extends StatelessWidget {
         // language explicitly chosen while signed in (on this device,
         // ever) should still apply here rather than silently falling
         // back to the device's raw system locale the moment someone
-        // signs out. Null (nothing ever chosen) leaves `locale` unset,
-        // which is exactly the previous system-locale-only behavior.
-        final deviceLocale = DeviceLanguage.current == null ? null : Locale(DeviceLanguage.current!);
+        // signs out. Nothing ever chosen defaults to English rather than
+        // following the device's system locale — a deliberate product
+        // choice, not the previous system-locale-only behavior.
+        final deviceLocale = Locale(DeviceLanguage.current ?? 'en');
         if (snapshot.connectionState == ConnectionState.waiting) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
@@ -277,7 +278,8 @@ class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver 
         // system locale even for someone who'd explicitly chosen
         // Chinese. builder's own override below still takes over with
         // the real appState.languageCode once it's actually loaded.
-        locale: DeviceLanguage.current == null ? null : Locale(DeviceLanguage.current!),
+        // Nothing ever chosen defaults to English, not the system locale.
+        locale: Locale(DeviceLanguage.current ?? 'en'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) {

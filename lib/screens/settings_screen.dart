@@ -8,7 +8,6 @@ import '../data/app_state.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../services/app_lock_service.dart';
 import '../services/auth_service.dart';
-import '../services/gemini_service.dart';
 import '../services/media_capture.dart';
 import '../services/notification_service.dart';
 import '../widgets/app_snackbar.dart';
@@ -17,8 +16,6 @@ import 'about_screen.dart';
 import 'delete_account_screen.dart';
 import 'help_support_screen.dart';
 import 'privacy_security_screen.dart';
-
-enum _GeminiConnStatus { unknown, testing, connected, failed }
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -41,9 +38,6 @@ class _SettingsScreenState extends State<SettingsScreen>
   // `true` rather than reconstructing the card from scratch once these
   // are needed again.
   static const _showTestingTools = false;
-
-  _GeminiConnStatus _connStatus = _GeminiConnStatus.unknown;
-  String? _connError;
 
   // null = not checked yet — treated as "not permanently blocked" until
   // proven otherwise, so the switch isn't shown blocked while this is
@@ -99,24 +93,6 @@ class _SettingsScreenState extends State<SettingsScreen>
       setState(() {
         _notificationPermissionStatus = status;
         _hasRequestedNotificationPermissionBefore = requestedBefore;
-      });
-    }
-  }
-
-  Future<void> _testGeminiConnection(String apiKey) async {
-    setState(() {
-      _connStatus = _GeminiConnStatus.testing;
-      _connError = null;
-    });
-    try {
-      await testGeminiConnection(apiKey);
-      if (!mounted) return;
-      setState(() => _connStatus = _GeminiConnStatus.connected);
-    } on GeminiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _connStatus = _GeminiConnStatus.failed;
-        _connError = e.message;
       });
     }
   }
@@ -618,12 +594,6 @@ class _SettingsScreenState extends State<SettingsScreen>
                 ),
               ),
             ],
-            const SizedBox(height: 20),
-            _GeminiConnectionCard(
-              connStatus: _connStatus,
-              connError: _connError,
-              onTest: _testGeminiConnection,
-            ),
             const SizedBox(height: 32),
             Center(
               child: ConstrainedBox(
@@ -667,32 +637,19 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  /// null (the default) means "follow the device's own language" — shown
-  /// as "System" rather than silently picking English, so it's clear
-  /// that's an active choice too, not the absence of one.
+  /// null (the default, before anyone has ever picked a language) now
+  /// behaves exactly like an explicit "English" choice — see main.dart's
+  /// `deviceLocale`/`locale` — so it's labeled the same way here rather
+  /// than as a separate "System" option that no longer means what its
+  /// name says.
   String _languageLabel(BuildContext context, String? code) {
     switch (code) {
       case 'zh':
         return '中文';
-      case 'en':
-        return 'English';
       default:
-        return AppLocalizations.of(context)!.languageSystem;
+        return 'English';
     }
   }
-
-  // A real, non-null stand-in for "System" inside this dialog only —
-  // needed so showDialog's return value can actually tell "explicitly
-  // chose System" apart from "backed out without choosing anything".
-  // Both used to come back as the same plain `null`, which meant
-  // tapping outside the dialog (or the back button) to just close it —
-  // no different from cancelling any other picker — silently reset the
-  // language to System instead of leaving whatever was already chosen
-  // alone. Real bug, not just a rough edge: picking Chinese, reopening
-  // this dialog later, and dismissing it *without* touching anything
-  // would flip it straight back to English (or whatever the device's
-  // own system language is).
-  static const _systemOption = '__system__';
 
   Future<void> _pickLanguage(BuildContext context, AppState appState) async {
     final l10n = AppLocalizations.of(context)!;
@@ -702,20 +659,15 @@ class _SettingsScreenState extends State<SettingsScreen>
         title: Text(l10n.settingsLanguage),
         children: [
           RadioGroup<String>(
-            groupValue: appState.languageCode ?? _systemOption,
+            groupValue: appState.languageCode ?? 'en',
             onChanged: (value) => Navigator.of(context).pop(value),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                for (final option in const [_systemOption, 'en', 'zh'])
+                for (final option in const ['en', 'zh'])
                   RadioListTile<String>(
                     value: option,
-                    title: Text(
-                      _languageLabel(
-                        context,
-                        option == _systemOption ? null : option,
-                      ),
-                    ),
+                    title: Text(_languageLabel(context, option)),
                   ),
               ],
             ),
@@ -723,12 +675,11 @@ class _SettingsScreenState extends State<SettingsScreen>
         ],
       ),
     );
-    // Null here now unambiguously means "dismissed without choosing
-    // anything" (tapped outside, hit back, ...) — nothing was actually
-    // picked, so the language is left exactly as it already was, rather
-    // than being reset to System.
+    // Null here means "dismissed without choosing anything" (tapped
+    // outside, hit back, ...) — nothing was actually picked, so the
+    // language is left exactly as it already was.
     if (code == null) return;
-    appState.setLanguageCode(code == _systemOption ? null : code);
+    appState.setLanguageCode(code);
   }
 
   /// Purely cosmetic — see AppState.userName's doc comment. Never touches
@@ -1001,181 +952,3 @@ class _ModeButton extends StatelessWidget {
   }
 }
 
-/// Shows whether Gemini is actually reachable — not just "a key exists",
-/// but a real round-trip confirming it authenticates. Sits below Testing
-/// Tools so it's easy to find right after configuring the key above.
-///
-/// Also the *only* place a personal API key can actually be entered — the
-/// build this app is compiled into (Android, in particular) has no
-/// build-time key baked in via --dart-define the way the web deploy does
-/// (see gemini_service.dart's own doc), so without a working field here,
-/// Aura/Insights/daily prompts have no key at all to call Gemini with and
-/// just fail outright. resolveGeminiApiKey already prefers this saved key
-/// over the build-time one, so pasting one in here always takes effect
-/// immediately, on every platform.
-class _GeminiConnectionCard extends StatefulWidget {
-  const _GeminiConnectionCard({
-    required this.connStatus,
-    required this.connError,
-    required this.onTest,
-  });
-
-  final _GeminiConnStatus connStatus;
-  final String? connError;
-  final void Function(String apiKey) onTest;
-
-  @override
-  State<_GeminiConnectionCard> createState() => _GeminiConnectionCardState();
-}
-
-class _GeminiConnectionCardState extends State<_GeminiConnectionCard> {
-  late final _keyController = TextEditingController(
-    text: AppStateScope.of(context).geminiApiKey ?? '',
-  );
-  bool _obscureKey = true;
-
-  @override
-  void dispose() {
-    _keyController.dispose();
-    super.dispose();
-  }
-
-  void _save(BuildContext context, AppState appState) {
-    FocusScope.of(context).unfocus();
-    appState.setGeminiApiKey(_keyController.text);
-    showAppSnackBar(
-      context,
-      AppLocalizations.of(context)!.geminiApiKeySavedSnackbar,
-    );
-    // Immediate feedback on the key that was just typed, rather than
-    // making someone hunt for the separate Test Connection button right
-    // after already taking the "save" action.
-    final saved = resolveGeminiApiKey(appState.geminiApiKey);
-    if (saved != null) widget.onTest(saved);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
-    final appState = AppStateScope.of(context);
-    final effectiveKey = resolveGeminiApiKey(appState.geminiApiKey);
-
-    final (
-      IconData icon,
-      Color color,
-      String label,
-    ) = switch (widget.connStatus) {
-      _ when effectiveKey == null => (
-        Icons.key_off_outlined,
-        scheme.onSurfaceVariant,
-        l10n.geminiNoKeyConfigured,
-      ),
-      _GeminiConnStatus.testing => (
-        Icons.sync,
-        scheme.onSurfaceVariant,
-        l10n.geminiTesting,
-      ),
-      _GeminiConnStatus.connected => (
-        Icons.check_circle,
-        Colors.green,
-        l10n.geminiConnected,
-      ),
-      _GeminiConnStatus.failed => (
-        Icons.error_outline,
-        scheme.error,
-        l10n.geminiConnectionFailed,
-      ),
-      _GeminiConnStatus.unknown => (
-        Icons.help_outline,
-        scheme.onSurfaceVariant,
-        l10n.geminiNotTestedYet,
-      ),
-    };
-
-    return FloatingCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.cloud_outlined, color: scheme.primary),
-              const SizedBox(width: 8),
-              Text(
-                l10n.geminiConnectionTitle,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: scheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _keyController,
-            obscureText: _obscureKey,
-            decoration: InputDecoration(
-              labelText: l10n.geminiApiKeyLabel,
-              hintText: l10n.geminiApiKeyHint,
-              prefixIcon: const Icon(Icons.vpn_key_outlined),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscureKey
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined,
-                ),
-                onPressed: () => setState(() => _obscureKey = !_obscureKey),
-              ),
-            ),
-            onSubmitted: (_) => _save(context, appState),
-          ),
-          // No "Get API Key" link here anymore — the app already ships
-          // with a working key baked in at build time (see
-          // resolveGeminiApiKey's own doc), so nobody actually needs to
-          // go get their own just to use Aura/the other AI features. The
-          // field itself stays, for anyone who wants to override that
-          // with their own key regardless.
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton(
-              onPressed: () => _save(context, appState),
-              child: Text(l10n.geminiApiKeySaveButton),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(fontWeight: FontWeight.w600, color: color),
-                ),
-              ),
-            ],
-          ),
-          if (widget.connStatus == _GeminiConnStatus.failed &&
-              widget.connError != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              widget.connError!,
-              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-            ),
-          ],
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed:
-                effectiveKey == null ||
-                    widget.connStatus == _GeminiConnStatus.testing
-                ? null
-                : () => widget.onTest(effectiveKey),
-            icon: const Icon(Icons.wifi_tethering, size: 18),
-            label: Text(l10n.geminiTestConnectionButton),
-          ),
-        ],
-      ),
-    );
-  }
-}

@@ -13,7 +13,7 @@ import '../widgets/floating_card.dart';
 // about_screen.dart's own copy of this constant (see its doc comment for
 // why this isn't read from package_info_plus at runtime instead, and for
 // what the "(N)" is) — bump both together.
-const _appVersion = '1.0.0 (52)';
+const _appVersion = '1.0.0 (54)';
 
 // SharedPreferences key for "Remember me" — just the email, not the
 // password. Session persistence across app restarts is already handled by

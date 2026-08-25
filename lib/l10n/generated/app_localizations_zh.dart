@@ -710,9 +710,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get actionClear => '清空';
 
   @override
-  String get languageSystem => '跟随系统';
-
-  @override
   String get settingsSubtitle => '定制你的专属港湾。';
 
   @override
@@ -809,42 +806,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsLogOutConfirmBody => '你需要重新登录才能查看你的日记。';
-
-  @override
-  String get geminiNoKeyConfigured => '未配置密钥';
-
-  @override
-  String get geminiTesting => '测试中…';
-
-  @override
-  String get geminiConnected => '已连接';
-
-  @override
-  String get geminiConnectionFailed => '连接失败';
-
-  @override
-  String get geminiNotTestedYet => '尚未测试';
-
-  @override
-  String get geminiConnectionTitle => 'Gemini 连接';
-
-  @override
-  String get geminiTestConnectionButton => '测试连接';
-
-  @override
-  String get geminiApiKeyLabel => 'Gemini API 密钥';
-
-  @override
-  String get geminiApiKeyHint => '粘贴你的 API 密钥';
-
-  @override
-  String get geminiApiKeySaveButton => '保存';
-
-  @override
-  String get geminiApiKeySavedSnackbar => 'API 密钥已保存';
-
-  @override
-  String get geminiGetApiKeyLink => '获取免费 API 密钥';
 
   @override
   String get entryShareCaption => '我的心情记录 —— 通过 Moodlet 分享 🌙';
