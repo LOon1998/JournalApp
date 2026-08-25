@@ -14,9 +14,18 @@ import '../l10n/generated/app_localizations.dart';
 /// everything else editable on an entry), or omit it for a read-only
 /// player.
 class VoiceNotePlayer extends StatefulWidget {
-  const VoiceNotePlayer({super.key, required this.base64Audio, this.onDelete});
+  const VoiceNotePlayer({super.key, required this.base64Audio, this.onDelete, this.backgroundColor});
   final String base64Audio;
   final VoidCallback? onDelete;
+
+  /// Overrides the pill's own background — defaults to a plain neutral
+  /// grey (surfaceContainerHigh) if not given. Callers whose surrounding
+  /// card can be tinted by a Writing Theme (see EntryDetailScreen's own
+  /// tagChipColor) should pass that same color through here too, the same
+  /// way its tag chips and text field already do — otherwise this pill
+  /// stays a fixed grey no matter what color the card around it actually
+  /// is, which reads as a visible mismatch rather than matching content.
+  final Color? backgroundColor;
 
   @override
   State<VoiceNotePlayer> createState() => _VoiceNotePlayerState();
@@ -86,7 +95,10 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
     final playing = _state == PlayerState.playing;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(color: scheme.surfaceContainerHigh, borderRadius: BorderRadius.circular(999)),
+      decoration: BoxDecoration(
+        color: widget.backgroundColor ?? scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(999),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

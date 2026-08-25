@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -10,12 +12,20 @@ import 'screens/home_shell.dart';
 import 'screens/welcome_screen.dart';
 import 'services/app_lock_service.dart';
 import 'services/auth_service.dart';
+import 'services/device_language.dart';
 import 'services/notification_service.dart';
+import 'services/screenshot_guard.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Awaited before runApp (not left to resolve later, e.g. via a
+  // FutureBuilder) so it's already available for LuminaApp's very first
+  // build — see DeviceLanguage's own doc for why this needs to exist
+  // independently of AppState at all.
+  await DeviceLanguage.load();
+  ScreenshotGuard.ensureInitialized();
   runApp(const LuminaApp());
 }
 
@@ -42,24 +52,31 @@ class LuminaApp extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
+        // DeviceLanguage.current, not AppState.languageCode — there's no
+        // signed-in AppState at all yet on either branch below, but a
+        // language explicitly chosen while signed in (on this device,
+        // ever) should still apply here rather than silently falling
+        // back to the device's raw system locale the moment someone
+        // signs out. Null (nothing ever chosen) leaves `locale` unset,
+        // which is exactly the previous system-locale-only behavior.
+        final deviceLocale = DeviceLanguage.current == null ? null : Locale(DeviceLanguage.current!);
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const MaterialApp(
+          return MaterialApp(
             debugShowCheckedModeBanner: false,
+            locale: deviceLocale,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(body: Center(child: CircularProgressIndicator())),
+            home: const Scaffold(body: Center(child: CircularProgressIndicator())),
           );
         }
         final user = snapshot.data;
         if (user == null) {
-          // No AppState (and therefore no saved language preference) exists
-          // yet pre-sign-in — falls back to whatever locale the device
-          // itself is set to, same as leaving `locale:` unset always does.
           return MaterialApp(
             title: 'Moodlet',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
+            locale: deviceLocale,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const AuthScreen(),
@@ -87,12 +104,24 @@ class _SignedInApp extends StatefulWidget {
 class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver {
   late final AppLockService _lockService = AppLockService(widget.user.uid);
 
+  // Lets didChangeAppLifecycleState below pop back to `home` from
+  // wherever the Navigator's stack currently is (Settings, an entry, ...)
+  // when re-locking — see that method's own doc for why that pop is
+  // necessary, not just a nicety.
+  final _navigatorKey = GlobalKey<NavigatorState>();
+
   // Pessimistic default (locked) until the real check resolves, so there's
   // never a frame where real content is reachable before we actually know
   // whether a lock is supposed to be guarding it.
   bool _locked = true;
   bool _lockChecked = false;
   AppLifecycleState? _lastLifecycleState;
+
+  // Debounces didChangeAppLifecycleState's own relock below — see that
+  // method's doc for why a brief, cancellable delay (rather than locking
+  // the instant focus is lost) is what tells a screenshot's momentary
+  // interruption apart from an actual app switch.
+  Timer? _relockTimer;
 
   late final AppState _appState = AppState(
     uid: widget.user.uid,
@@ -140,20 +169,70 @@ class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _relockTimer?.cancel();
     _appState.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Re-lock on the transition back from the background — not on the
-    // very first "resumed" callback at cold start, which _checkLock()
-    // above already covers on its own.
-    if (state == AppLifecycleState.resumed &&
-        (_lastLifecycleState == AppLifecycleState.paused || _lastLifecycleState == AppLifecycleState.inactive)) {
-      _lockService.isLockEnabled().then((enabled) {
-        if (mounted && enabled) setState(() => _locked = true);
+    // Triggered by *leaving* the foreground, not by coming back to it —
+    // AppLockScreen only ever replaces `home`'s own content (see build()
+    // below), so if some other screen (Settings, Pattern Lock setup, an
+    // entry, ...) was pushed on top of it, that pushed screen just kept
+    // covering the swap and the lock never became visible at all — a
+    // real, reported bug, not just a cosmetic one. Popping back to `home`
+    // here, while the app is backgrounded and nothing is visibly on
+    // screen either way, means by the time AppLifecycleState.resumed
+    // actually fires, the stack is already back at `home` and _locked is
+    // already true — so there's no visible snap from Settings back to
+    // Home, and no frame where whatever was pushed shows in front of a
+    // lock that's supposed to be blocking it.
+    final leavingForeground =
+        (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) &&
+        _lastLifecycleState != AppLifecycleState.paused &&
+        _lastLifecycleState != AppLifecycleState.inactive;
+    // Not consumed here — see ExternalActivityGuard's own doc for why an
+    // operation that's still in flight (the camera, share sheet, a
+    // browser link, a permission dialog, ...) needs to keep reading as
+    // "expected" for as long as it's actually running, not just for the
+    // first leaving-foreground transition it happens to produce.
+    final expected = leavingForeground && ExternalActivityGuard.isActive;
+    if (leavingForeground && !expected) {
+      // Not an immediate relock — a screenshot's own capture UI (notably
+      // Samsung's own Smart Capture toolbar, which pops up the instant a
+      // screenshot is taken and can stay interactable for a couple of
+      // seconds afterward) briefly steals focus the exact same way
+      // switching away to another app does, producing this same paused/
+      // inactive transition. Waiting a beat and then checking whether the
+      // app is *still* not back in the foreground — and still not covered
+      // by an ExternalActivityGuard that only started being active after
+      // this transition was first seen — is what tells that apart from an
+      // actual app switch, which stays backgrounded far longer than this
+      // delay either way. ScreenshotGuard's own native signal (Android
+      // 14+) is the precise way to catch this, but Samsung's own
+      // screenshot pipeline doesn't reliably route through the AOSP hook
+      // that signal depends on, so this timing fallback is the one
+      // actually carrying the fix on a Samsung device — 2.5s comfortably
+      // outlasts that toolbar without meaningfully weakening the lock: a
+      // genuine backgrounding still relocks well before anyone could
+      // realistically pick the phone back up and return to it.
+      _relockTimer?.cancel();
+      _relockTimer = Timer(const Duration(milliseconds: 2500), () {
+        if (!mounted || _lastLifecycleState == AppLifecycleState.resumed) return;
+        if (ExternalActivityGuard.isActive) return;
+        _lockService.isLockEnabled().then((enabled) {
+          if (!mounted || !enabled) return;
+          _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+          setState(() => _locked = true);
+        });
       });
+    } else if (state == AppLifecycleState.resumed) {
+      // Back in the foreground before the debounce above ever fired —
+      // cancel it so a screenshot's brief interruption never reaches the
+      // relock at all.
+      _relockTimer?.cancel();
+      _relockTimer = null;
     }
     _lastLifecycleState = state;
   }
@@ -182,12 +261,23 @@ class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver 
     return AppStateScope(
       notifier: _appState,
       child: MaterialApp(
+        navigatorKey: _navigatorKey,
         title: 'Moodlet',
         debugShowCheckedModeBanner: false,
         // Static fallback for the single frame before MaterialApp.builder
         // below first runs; that builder immediately overrides it via a
         // Theme wrapper once AppStateScope is reachable.
         theme: AppTheme.light,
+        // DeviceLanguage.current, not appState.languageCode — this
+        // MaterialApp (and therefore _LoadingScreen, shown via the
+        // FutureBuilder below) builds *before* _appState.ready resolves,
+        // while languageCode is still unset regardless of what the
+        // account's own actual preference turns out to be — so without
+        // this, the loading screen briefly showed in the device's raw
+        // system locale even for someone who'd explicitly chosen
+        // Chinese. builder's own override below still takes over with
+        // the real appState.languageCode once it's actually loaded.
+        locale: DeviceLanguage.current == null ? null : Locale(DeviceLanguage.current!),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) {
@@ -218,7 +308,16 @@ class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver 
         home: FutureBuilder<void>(
           future: _appState.ready,
           builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done || !_lockChecked) {
+            // Gated on _lockChecked alone here — a quick local prefs
+            // read (AppLockService.isLockEnabled) — not on
+            // AppState.ready below, which can mean a real network round
+            // trip to Firestore. Pattern Lock is a device-local setting
+            // (see AppLockService's own doc), unrelated to that cloud
+            // data and not gating anything the lock screen itself
+            // actually needs, so there was never a good reason to make
+            // it wait behind a loading screen before someone could even
+            // try entering their pattern.
+            if (!_lockChecked) {
               return const _LoadingScreen();
             }
             // Fingerprint Unlock / Pattern Lock gate — shown in front of
@@ -227,6 +326,13 @@ class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver 
             // above). Its own onUnlocked callback is the only way past it.
             if (_locked) {
               return AppLockScreen(uid: widget.user.uid, onUnlocked: () => setState(() => _locked = false));
+            }
+            // Only *after* a successful unlock (or when there was never a
+            // lock to begin with) does this wait on the actual data
+            // restore — the loading screen belongs after Pattern Lock,
+            // not in front of it.
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const _LoadingScreen();
             }
             if (!_notificationsRescheduled) {
               _notificationsRescheduled = true;
@@ -280,7 +386,7 @@ class _LoadingScreenState extends State<_LoadingScreen> with SingleTickerProvide
               child: Image.asset('assets/branding/logoIcon.png', width: 120, height: 120),
             ),
             const SizedBox(height: 20),
-            Text('Preparing your journal...',
+            Text(AppLocalizations.of(context)!.loadingPreparingJournal,
                 style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 15)),
           ],
         ),

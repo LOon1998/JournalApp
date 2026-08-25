@@ -1,9 +1,6 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:showcaseview/showcaseview.dart';
 import '../data/app_state.dart';
-import '../l10n/generated/app_localizations.dart';
 import '../screens/settings_screen.dart';
 import '../services/app_tour.dart';
 
@@ -38,7 +35,6 @@ class LuminaTopBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final appState = AppStateScope.of(context);
-    final l10n = AppLocalizations.of(context)!;
 
     void openSettings() => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const SettingsScreen()),
@@ -57,11 +53,9 @@ class LuminaTopBar extends StatelessWidget implements PreferredSizeWidget {
             child: CircleAvatar(
               radius: 22,
               backgroundColor: scheme.primaryContainer,
-              backgroundImage: appState.profilePhotoBase64 != null
-                  ? MemoryImage(base64Decode(appState.profilePhotoBase64!))
-                  : null,
-              child: appState.profilePhotoBase64 == null
-                  ? Icon(Icons.self_improvement, size: 22, color: scheme.onPrimaryContainer)
+              backgroundImage: appState.profilePhotoBytes != null ? MemoryImage(appState.profilePhotoBytes!) : null,
+              child: appState.profilePhotoBytes == null
+                  ? Icon(Icons.person, size: 22, color: scheme.onPrimaryContainer)
                   : null,
             ),
           ),
@@ -80,24 +74,39 @@ class LuminaTopBar extends StatelessWidget implements PreferredSizeWidget {
     final auraAndSettingsIcons = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        IconButton(
-          visualDensity: VisualDensity.compact,
-          onPressed: () => appState.setAuraEnabled(!appState.auraEnabled),
-          icon: Icon(
-            Icons.bubble_chart,
-            color: appState.auraEnabled ? scheme.primary : scheme.outlineVariant,
+        Showcase(
+          key: TourKeys.auraToggleIcon,
+          description: AppTour.auraToggleText(context),
+          targetShapeBorder: const CircleBorder(),
+          // No `tooltip:` here either — same RawTooltipState/ticker
+          // collision as the Settings icon below when a native Tooltip
+          // is nested directly inside a Showcase target.
+          child: IconButton(
+            visualDensity: VisualDensity.compact,
+            onPressed: () => appState.setAuraEnabled(!appState.auraEnabled),
+            icon: Icon(
+              Icons.bubble_chart,
+              color: appState.auraEnabled ? scheme.primary : scheme.outlineVariant,
+            ),
           ),
-          tooltip: appState.auraEnabled ? l10n.topBarHideAura : l10n.topBarShowAura,
         ),
         Showcase(
           key: TourKeys.settingsIcon,
           description: AppTour.settingsIconText(context),
           targetShapeBorder: const CircleBorder(),
+          // No `tooltip:` on this IconButton (unlike a plain one) — a
+          // native Tooltip nested directly inside a Showcase target
+          // collides with showcaseview's own overlay clone of the same
+          // subtree: Flutter's RawTooltipState ends up asked for a
+          // second AnimationController on a SingleTickerProviderStateMixin
+          // that only supports one, crashing with "multiple tickers were
+          // created". The tour's own description already explains this
+          // icon while it's showing; outside the tour the gear is
+          // self-explanatory enough without a hover tooltip.
           child: IconButton(
             visualDensity: VisualDensity.compact,
             onPressed: openSettings,
             icon: Icon(Icons.settings, color: scheme.primary),
-            tooltip: l10n.settingsTitle,
           ),
         ),
       ],

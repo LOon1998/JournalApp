@@ -41,28 +41,28 @@ class _HomeShellState extends State<HomeShell> {
   bool _tourRunning = false;
 
   @override
-  void initState() {
-    super.initState();
-    // Must happen synchronously here, before the first build() — every
-    // Showcase-wrapped widget below (bottom nav, Aura FAB, the Settings
-    // icon, ...) is unconditionally part of this tree regardless of
-    // whether a tour is actually running, and throws immediately at
-    // build time if no ShowcaseView is registered yet. Deferring this to
-    // a post-frame callback (i.e. only inside _maybeStartTour) was too
-    // late — this widget's very first build() already needs it.
-    AppTour.register();
-  }
-
-  /// Switches tabs (a no-op if already on [index]) and waits a frame so
-  /// whatever's newly visible has actually laid out — [AppTour] passes
-  /// this in as its own tab-switching hook, since only HomeShell owns
-  /// [_index].
-  Future<void> _goToTab(int index) async {
-    if (!mounted) return;
-    if (_index != index) {
-      setState(() => _index = index);
-      await WidgetsBinding.instance.endOfFrame;
-    }
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Not initState — AppTour.register reads AppLocalizations.of(context)
+    // (just to size the Skip button's label), and establishing a *new*
+    // inherited-widget dependency from initState is a hard Flutter
+    // assertion failure ("dependOnInheritedWidgetOfExactType... called
+    // before initState() completed"), not just a style nit.
+    // didChangeDependencies still runs before this widget's first
+    // build() (same guarantee initState would have given), which is what
+    // actually matters here — every Showcase-wrapped widget below
+    // (bottom nav, Aura FAB, the Settings icon, ...) is unconditionally
+    // part of this tree regardless of whether a tour is running, and
+    // throws immediately at build time if no ShowcaseView is registered
+    // yet. Cheap and safe to call every time this fires (e.g. on a
+    // locale change) — see AppTour.register's own doc.
+    AppTour.register(context);
+    // Unconditional (unlike register above) — this is what keeps the
+    // tour's Next/Skip button labels correctly translated even long
+    // after registration itself happened; see AppTour._currentContext's
+    // own doc for why this had to be a separate, always-safe-to-repeat
+    // update rather than folded into register().
+    AppTour.updateContext(context);
   }
 
   /// Auto-starts the guided tour the first time a signed-in account ever
@@ -73,16 +73,43 @@ class _HomeShellState extends State<HomeShell> {
   /// [_tourRunning] against re-entering mid-tour, the same pattern this
   /// class already uses for the pending-check-in tab switch below.
   void _maybeStartTour(AppState appState) {
-    if (_tourRunning) return;
+    if (_tourRunning) {
+      debugPrint('[HomeShell] _maybeStartTour: skipped — a tour is already running (_tourRunning=true)');
+      return;
+    }
     final replayRequested = appState.takeTourReplayRequested();
-    if (!replayRequested && appState.hasSeenTour) return;
+    if (!replayRequested && appState.hasSeenTour) {
+      debugPrint('[HomeShell] _maybeStartTour: skipped — replayRequested=false and hasSeenTour=true '
+          '(nothing asked for a replay, and it already auto-played once before)');
+      return;
+    }
+    debugPrint('[HomeShell] _maybeStartTour: starting — replayRequested=$replayRequested '
+        'hasSeenTour=${appState.hasSeenTour}');
     _tourRunning = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      final includeCheckIn = appState.entriesOn(DateTime.now()).isEmpty;
-      await AppTour.start(context, goToTab: _goToTab, includeCheckIn: includeCheckIn);
-      appState.dismissTour();
-      _tourRunning = false;
+      if (!mounted) {
+        debugPrint('[HomeShell] _maybeStartTour: post-frame callback ran but widget is unmounted — bailing');
+        return;
+      }
+      try {
+        debugPrint('[HomeShell] _maybeStartTour: calling AppTour.start '
+            '(auraEnabled=${appState.auraEnabled})');
+        await AppTour.start(
+          context,
+          auraEnabled: appState.auraEnabled,
+        );
+        debugPrint('[HomeShell] _maybeStartTour: AppTour.start returned — calling dismissTour()');
+        appState.dismissTour();
+      } catch (e, st) {
+        debugPrint('[HomeShell] _maybeStartTour: AppTour.start THREW: $e\n$st');
+      } finally {
+        // Unconditionally, even if AppTour.start threw — otherwise a
+        // single failed run (a bad target, a mid-tour exception) leaves
+        // this stuck true forever, silently no-oping every future tour
+        // attempt (auto-start *and* Settings' "Take a Tour") for the
+        // rest of the session, with nothing on screen to explain why.
+        _tourRunning = false;
+      }
     });
   }
 

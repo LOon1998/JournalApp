@@ -31,12 +31,10 @@
 // None of the values below are secret in the way an API key normally is —
 // Firebase's web/Android config identifies which project to talk to, but
 // doesn't grant access to anything by itself; the Firestore rules above
-// are what actually enforce privacy. So once you've filled in your real
-// project's values, this file is safe to commit as-is.
+// are what actually enforce privacy. So this file is safe to commit as-is.
 //
-// Until the placeholder values below are replaced with real ones, the app
-// will compile and run, but any sign-in/sync attempt will fail — the sign
-// in/sign up screen surfaces that as a plain error rather than crashing.
+// Both `web` and `android` below are filled in with this project's real
+// values (project "website-1551755601970" / package com.lumina.lumina).
 
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart' show kIsWeb, TargetPlatform, defaultTargetPlatform;
@@ -64,10 +62,10 @@ class DefaultFirebaseOptions {
   );
 
   static const android = FirebaseOptions(
-    apiKey: 'REPLACE_WITH_ANDROID_API_KEY',
-    appId: 'REPLACE_WITH_ANDROID_APP_ID',
-    messagingSenderId: 'REPLACE_WITH_SENDER_ID',
-    projectId: 'REPLACE_WITH_PROJECT_ID',
-    storageBucket: 'REPLACE_WITH_PROJECT_ID.appspot.com',
+    apiKey: 'AIzaSyCVBMqwr4J9l_ABgOg1IvgpFZrtzMkoKhQ',
+    appId: '1:779650679650:android:5b91d17cbcef6656f6623b',
+    messagingSenderId: '779650679650',
+    projectId: 'website-1551755601970',
+    storageBucket: 'website-1551755601970.firebasestorage.app',
   );
 }

@@ -52,6 +52,8 @@
   "settingsTitle": "Settings",
   "settingsGeneral": "General",
   "settingsNotifications": "Notifications",
+  "settingsNotificationsBlockedByOs": "Blocked in your phone's system settings — enable notifications for Moodlet there first.",
+  "settingsOpenSystemNotificationSettings": "Open Notification Settings",
   "settingsLanguage": "Language",
   "settingsPrivacySecurity": "Privacy & Security",
   "settingsHelpSupport": "Help & Support",
@@ -76,22 +78,13 @@
   "patternLockDidntMatch": "Patterns didn't match — draw a new pattern",
   "patternLockSetSnackbar": "Pattern Lock set",
 
-  "helpSupportEmailFailed": "Couldn't open your email app — you can reach us at {email}",
-  "@helpSupportEmailFailed": {
-    "placeholders": { "email": { "type": "String" } }
-  },
   "helpSupportHeroTitle": "We're here to help",
-  "helpSupportHeroSubtitle": "A couple of quick answers below — or reach out directly and we'll get back to you.",
+  "helpSupportHeroSubtitle": "A couple of quick answers below.",
   "helpSupportFaqTitle": "Frequently Asked Questions",
   "helpSupportFaq1Q": "Is my data secured?",
   "helpSupportFaq1A": "Yes — your account and journal are protected by Firebase Authentication and Cloud Firestore, with access rules that restrict your data to your own signed-in account only. See the Privacy Policy (About Moodlet) for the full details.",
   "helpSupportFaq2Q": "Can I use Moodlet on multiple devices?",
   "helpSupportFaq2A": "Yes — sign in with the same account on any device and your journal, mood history, and settings will all be right there. Pattern Lock is the only exception — it's set per-device, so you'll set it up again on a new one.",
-  "helpSupportStillNeedHand": "Still need a hand?",
-  "helpSupportEmailUs": "Email us — {email}",
-  "@helpSupportEmailUs": {
-    "placeholders": { "email": { "type": "String" } }
-  },
 
   "privacyPolicyTitle": "Privacy Policy",
   "privacyPolicyLastUpdated": "Last updated: {date}",
@@ -252,6 +245,7 @@
   "@authPasswordResetSent": {
     "placeholders": { "email": { "type": "String" } }
   },
+  "authRememberMe": "Remember me",
 
   "auraChatTitle": "Aura AI",
   "auraClearChatTooltip": "Clear chat",
@@ -260,6 +254,12 @@
   "auraClearConfirm": "Clear",
   "auraTypeMessageHint": "Type a message...",
   "auraNotAvailableHint": "Currently not available for chat",
+  "auraErrorNetwork": "Could not reach Aura — check your connection and try again.",
+  "auraErrorBadRequest": "Aura isn't set up correctly — check your API key in Settings.",
+  "auraErrorDailyLimit": "Not available — today's usage limit has been reached. Try again tomorrow.",
+  "auraErrorRateLimited": "Aura's a little busy right now — try again in a few minutes.",
+  "auraErrorServer": "Not available right now. Try again in a moment.",
+  "auraErrorBadResponse": "Couldn't read Aura's response. Try again in a moment.",
   "auraQuickReply1": "I need to vent",
   "auraQuickReply2": "Breathing exercise",
   "auraQuickReply3": "Just chatting",
@@ -315,6 +315,7 @@
   "settingsClearAllButton": "Clear All Entries",
   "settingsTestNotification": "Test Notification",
   "settingsTestNotificationSnackbar": "Test notification sent — check your notification shade",
+  "settingsTestNotificationDisabledSnackbar": "Turn on Notifications above first",
   "settingsDeleteAccount": "Delete Account",
   "settingsEditNameDialogTitle": "Edit name",
   "settingsNameHint": "Your name",
@@ -338,6 +339,18 @@
   "geminiNotTestedYet": "Not tested yet",
   "geminiConnectionTitle": "Gemini Connection",
   "geminiTestConnectionButton": "Test Connection",
+  "geminiApiKeyLabel": "Gemini API Key",
+  "geminiApiKeyHint": "Paste your API key",
+  "geminiApiKeySaveButton": "Save",
+  "geminiApiKeySavedSnackbar": "API key saved",
+  "geminiGetApiKeyLink": "Get a free API key",
+
+  "entryShareCaption": "My mood insight — shared with Moodlet 🌙",
+
+  "notificationTitle": "Moodlet",
+  "notificationBody": "How was your day? Take a moment to reflect. 🌙",
+  "notificationChannelName": "Daily Reminder",
+  "notificationChannelDescription": "A gentle daily nudge to check in with yourself.",
 
   "actionNo": "No",
   "actionYesDelete": "Yes, delete",
@@ -357,6 +370,13 @@
   "entryShowMore": "Show more",
 
   "calendarNoEntriesYet": "No entries on this day yet.",
+  "calendarWeekdaySun": "S",
+  "calendarWeekdayMon": "M",
+  "calendarWeekdayTue": "T",
+  "calendarWeekdayWed": "W",
+  "calendarWeekdayThu": "T",
+  "calendarWeekdayFri": "F",
+  "calendarWeekdaySat": "S",
 
   "journalNothingLoggedYet": "Nothing logged yet today.",
   "journalDailySlots": "{count} of {max} daily slots",
@@ -496,8 +516,6 @@
   "deleteAccountJournalsSubtitle": "All written entries and reflections",
   "deleteAccountMoodHistoryTitle": "Mood History",
   "deleteAccountMoodHistorySubtitle": "Your tracked emotional journey",
-  "deleteAccountInsightsTitle": "Personal Insights",
-  "deleteAccountInsightsSubtitle": "AI-generated patterns and summaries",
   "deleteAccountConfirmPassword": "Confirm your password to continue",
   "deleteAccountPasswordHint": "Enter your password",
   "deleteAccountKeepButton": "Keep My Account",
@@ -508,8 +526,12 @@
   "tourJournalTab": "Read and write your journal entries.",
   "tourCalendarTab": "Browse any past day by date.",
   "tourAuraFab": "Meet Aura — tap anytime for a supportive chat.",
-  "tourCheckInCard": "Or check in right from here, without leaving this screen.",
-  "tourJournalActions": "Add photos, voice notes, or tags to any entry.",
   "tourSettingsIcon": "Preferences, privacy, and more live here.",
-  "settingsTakeTour": "Take a Tour"
+  "settingsTakeTour": "Take a Tour",
+  "tourSkip": "Skip",
+  "tourNext": "Next",
+  "tourDone": "Got it",
+  "loadingPreparingJournal": "Preparing your journal...",
+  "auraGreeting": "Hi there! I'm Aura, your mindful companion. How are you feeling today?",
+  "tourAuraToggle": "Turn Aura on here for a supportive chat companion."
 }

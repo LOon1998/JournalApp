@@ -38,6 +38,13 @@ migrate_working_dir/
 /flutter/
 devtools_options.yaml
 
+# This machine's own Gemini API key, passed to local `flutter build` runs
+# via --dart-define-from-file so it doesn't have to be retyped into
+# Settings after every reinstall. Never committed — same reasoning as the
+# GEMINI_API_KEY GitHub Actions secret the web deploy workflow uses
+# instead, just for local builds.
+/local.env.json
+
 # Symbolication related
 app.*.symbols
 
@@ -48,3 +55,4 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/build/

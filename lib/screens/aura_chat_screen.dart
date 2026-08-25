@@ -29,6 +29,11 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
   // yet — build() resolves them to actual strings each frame.
   static const _quickReplyPoolSize = 12;
 
+  // How much of the stored conversation actually gets sent to Gemini as
+  // context on each new message — see _send's own doc for why this is
+  // capped instead of always sending everything.
+  static const _maxHistoryTurns = 10;
+
   late final List<int> _quickReplyIndices =
       (List.generate(_quickReplyPoolSize, (i) => i)..shuffle()).take(3).toList();
 
@@ -49,6 +54,28 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
 
   bool _sending = false;
 
+  // Starts optimistic (true) so the composer is usable right away rather
+  // than waiting on a network round-trip before anyone can type a single
+  // character — only flips to false once _verifyKey's background check
+  // actually comes back rejected. That's what lets a genuinely dead/wrong
+  // key dim the composer on its own, with no need to visit Settings and
+  // tap Test Connection first — this screen does that check itself, the
+  // moment it opens, instead of only surfacing the problem after someone's
+  // already typed and sent a message into a conversation that was never
+  // going to work.
+  bool _keyWorks = true;
+
+  // Set once a reply comes back with GeminiFailureReason.dailyLimitReached
+  // — see that catch clause in _send for why this dims the composer
+  // rather than just showing the message inline and leaving it usable.
+  bool _dailyLimitReached = false;
+
+  // Guards _verifyKey so it only ever runs once — didChangeDependencies
+  // (unlike initState) can fire more than once over this screen's
+  // lifetime, and re-verifying on every single AppState change (a new
+  // message arriving, etc.) would be pure waste.
+  bool _keyVerifyStarted = false;
+
   @override
   void initState() {
     super.initState();
@@ -57,6 +84,74 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
     // scrolled to the very top.
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(animate: false));
   }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Not in initState — AppStateScope.of(context) below depends on an
+    // InheritedWidget, and Flutter's own dependOnInheritedWidgetOfExactType
+    // throws if that's called before initState has finished ("Uncaught
+    // DartError: ... was called before _AuraChatScreenState.initState()
+    // completed"). didChangeDependencies is the documented place for
+    // exactly this: it always runs at least once, right after initState.
+    if (!_keyVerifyStarted) {
+      _keyVerifyStarted = true;
+      _verifyKey();
+    }
+  }
+
+  Future<void> _verifyKey() async {
+    final apiKey = resolveGeminiApiKey(AppStateScope.of(context).geminiApiKey);
+    // Nothing to verify — build()'s own `available` check already covers
+    // the no-key case, so this just leaves the optimistic default alone.
+    if (apiKey == null) return;
+    try {
+      await testGeminiConnection(apiKey);
+    } on GeminiException catch (e) {
+      if (!mounted) return;
+      // Same split _send's own catch clause already makes: only a
+      // genuinely rejected key (badRequest) or an already-exhausted daily
+      // quota actually mean this chat can't work right now — every other
+      // reason (a dropped connection, a per-minute rate limit, a
+      // momentary server hiccup, an unparseable response) says nothing
+      // about whether the key itself is fine, and used to disable the
+      // whole composer anyway. A single bad network moment at the exact
+      // instant this screen happened to open was enough to dim Aura for
+      // the rest of that visit, with no retry — the only way back was
+      // leaving and reopening the screen, which reset _keyWorks to true
+      // and ran this same check fresh. That's exactly the "sometimes
+      // works, sometimes doesn't, leaving and coming back fixes it"
+      // pattern this was causing.
+      switch (e.reason) {
+        case GeminiFailureReason.badRequest:
+          setState(() => _keyWorks = false);
+        case GeminiFailureReason.dailyLimitReached:
+          setState(() => _dailyLimitReached = true);
+        case GeminiFailureReason.network:
+        case GeminiFailureReason.rateLimited:
+        case GeminiFailureReason.serverError:
+        case GeminiFailureReason.badResponse:
+          // Transient — leave the composer usable. If the key is
+          // genuinely broken, sending a real message will surface that
+          // through _send's own error handling instead.
+          break;
+      }
+    }
+  }
+
+  // gemini_service.dart's own GeminiException.message is always plain
+  // English (that file has no BuildContext to localize with), so this is
+  // what actually shows a translated error inside the chat bubble instead
+  // — see _send's own doc for why that mismatch was a real bug, not just
+  // a cosmetic one.
+  String _localizedGeminiError(AppLocalizations l10n, GeminiException e) => switch (e.reason) {
+        GeminiFailureReason.network => l10n.auraErrorNetwork,
+        GeminiFailureReason.badRequest => l10n.auraErrorBadRequest,
+        GeminiFailureReason.dailyLimitReached => l10n.auraErrorDailyLimit,
+        GeminiFailureReason.rateLimited => l10n.auraErrorRateLimited,
+        GeminiFailureReason.serverError => l10n.auraErrorServer,
+        GeminiFailureReason.badResponse => l10n.auraErrorBadResponse,
+      };
 
   @override
   void dispose() {
@@ -101,15 +196,32 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
     final appState = AppStateScope.of(context);
     final apiKey = resolveGeminiApiKey(appState.geminiApiKey);
     // Belt-and-suspenders: the input field and send button are already
-    // disabled whenever there's no key (see build() below), so this
-    // shouldn't be reachable that way — but guarding it here too means
-    // there's no path (a stray quick-reply tap, a future caller) that can
-    // still queue up a message that's just going to silently go nowhere.
-    if (message.isEmpty || _sending || apiKey == null) return;
+    // disabled whenever there's no key, _verifyKey found it doesn't
+    // actually work, or the daily quota's already been hit (see build()
+    // below), so this shouldn't be reachable that way — but guarding it
+    // here too means there's no path (a stray quick-reply tap, a future
+    // caller) that can still queue up a message that's just going to
+    // silently go nowhere.
+    if (message.isEmpty || _sending || apiKey == null || !_keyWorks || _dailyLimitReached) return;
 
     // History as it stood *before* this message — sendAuraMessage appends
-    // the new one itself, so the two shouldn't overlap.
-    final history = [for (final m in appState.auraMessages) AuraTurn(text: m.text, fromAura: m.fromAura)];
+    // the new one itself, so the two shouldn't overlap. Capped to the most
+    // recent _maxHistoryTurns — Aura has no memory of anything before
+    // that anyway (see sendAuraMessage's own doc), so sending the *whole*
+    // conversation on every single message was pure waste once it grew
+    // long: a bigger, slower request every time, for context Gemini was
+    // never even asked to use. Capping it also means a long-running
+    // conversation's per-message request size stays flat instead of
+    // growing forever, which matters for how soon a chat can run into the
+    // free tier's own per-minute/per-day quota.
+    final allMessages = appState.auraMessages;
+    final recentMessages = allMessages.length > _maxHistoryTurns
+        ? allMessages.sublist(allMessages.length - _maxHistoryTurns)
+        : allMessages;
+    final history = [for (final m in recentMessages) AuraTurn(text: m.text, fromAura: m.fromAura)];
+    // Captured before the await below — context isn't safe to keep
+    // reading from after an async gap the way a local value is.
+    final languageCode = Localizations.localeOf(context).languageCode;
 
     appState.addAuraMessage(AuraChatMessage(text: message, fromAura: false));
     _controller.clear();
@@ -117,14 +229,31 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
     _scrollToBottom();
 
     try {
-      final reply = await sendAuraMessage(apiKey, history, message);
+      final reply = await sendAuraMessage(apiKey, history, message, languageCode);
       if (!mounted) return;
       appState.addAuraMessage(AuraChatMessage(text: reply, fromAura: true));
     } on GeminiException catch (e) {
       if (!mounted) return;
-      // e.message is already a complete, friendly sentence — no need to
-      // wrap it in another "sorry, I couldn't..." on top of it.
-      appState.addAuraMessage(AuraChatMessage(text: e.message, fromAura: true));
+      // e.message itself is always plain English (gemini_service.dart has
+      // no BuildContext to localize with — it's a plain service, not a
+      // widget) — showing it directly used to mean an error always
+      // appeared in English inside the chat bubble even on the Chinese
+      // interface, unlike literally every other piece of UI text on this
+      // screen. _localizedGeminiError below maps e.reason to this
+      // screen's own translated copy instead, which does have access to
+      // the current locale via AppLocalizations.
+      appState.addAuraMessage(
+        AuraChatMessage(text: _localizedGeminiError(AppLocalizations.of(context)!, e), fromAura: true),
+      );
+      // The daily quota won't recover until tomorrow — dimming the
+      // composer for the rest of this session (same as a missing/broken
+      // key) saves someone from typing into a conversation that's
+      // guaranteed to fail again on every retry. Every other failure
+      // reason (network hiccup, per-minute rate limit, ...) is worth
+      // trying again, so only this one flips it.
+      if (e.reason == GeminiFailureReason.dailyLimitReached) {
+        setState(() => _dailyLimitReached = true);
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -148,7 +277,7 @@ class _AuraChatScreenState extends State<AuraChatScreen> {
     // and send into a chat that can only ever answer "Not available",
     // which used to waste their effort composing a message that was
     // never going anywhere.
-    final available = resolveGeminiApiKey(appState.geminiApiKey) != null;
+    final available = resolveGeminiApiKey(appState.geminiApiKey) != null && _keyWorks && !_dailyLimitReached;
     // Explicit override, not the shared theme's own (now cream)
     // background — this screen reads as too "milky"/washed-out with the
     // warm cream tone behind the chat bubbles, so it keeps the original
@@ -300,7 +429,19 @@ class _Bubble extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(color: bubbleColor, borderRadius: radius),
-                  child: Text(message.text, style: TextStyle(color: textColor)),
+                  child: Text(
+                    // The opening greeting is always stored in fixed
+                    // English (see AppState.defaultAuraGreeting's doc) —
+                    // every other message here is either something the
+                    // user actually typed themselves, or a live Gemini
+                    // reply already generated in the current language
+                    // (see sendAuraMessage), so only this one exact
+                    // string needs a display-time swap.
+                    message.text == defaultAuraGreeting
+                        ? AppLocalizations.of(context)!.auraGreeting
+                        : message.text,
+                    style: TextStyle(color: textColor),
+                  ),
                 ),
               ),
             ],

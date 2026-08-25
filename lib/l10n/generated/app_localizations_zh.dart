@@ -144,6 +144,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsNotifications => '通知';
 
   @override
+  String get settingsNotificationsBlockedByOs =>
+      '已在手机系统设置中被屏蔽——请先在系统设置中为 Moodlet 开启通知权限。';
+
+  @override
+  String get settingsOpenSystemNotificationSettings => '打开通知设置';
+
+  @override
   String get settingsLanguage => '语言';
 
   @override
@@ -201,15 +208,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get patternLockSetSnackbar => '图案锁已设置';
 
   @override
-  String helpSupportEmailFailed(String email) {
-    return '无法打开邮件应用——你可以通过 $email 联系我们';
-  }
-
-  @override
   String get helpSupportHeroTitle => '我们随时为你提供帮助';
 
   @override
-  String get helpSupportHeroSubtitle => '下面是一些常见问题解答——或直接联系我们，我们会尽快回复。';
+  String get helpSupportHeroSubtitle => '下面是一些常见问题解答。';
 
   @override
   String get helpSupportFaqTitle => '常见问题';
@@ -227,14 +229,6 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get helpSupportFaq2A =>
       '可以——在任意设备上用同一账户登录，你的日记、心情记录和设置都会同步呈现。图案锁是唯一的例外——它是按设备单独设置的，所以在新设备上需要重新设置。';
-
-  @override
-  String get helpSupportStillNeedHand => '还需要帮助？';
-
-  @override
-  String helpSupportEmailUs(String email) {
-    return '给我们发邮件 — $email';
-  }
 
   @override
   String get privacyPolicyTitle => '隐私政策';
@@ -594,6 +588,9 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get authRememberMe => '记住我';
+
+  @override
   String get auraChatTitle => 'Aura AI';
 
   @override
@@ -613,6 +610,24 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get auraNotAvailableHint => '当前无法进行对话';
+
+  @override
+  String get auraErrorNetwork => '无法连接到Aura——请检查网络连接后重试。';
+
+  @override
+  String get auraErrorBadRequest => 'Aura设置有误——请在设置中检查你的API密钥。';
+
+  @override
+  String get auraErrorDailyLimit => '暂不可用——今日使用额度已用完，请明天再试。';
+
+  @override
+  String get auraErrorRateLimited => 'Aura现在有点忙——请几分钟后再试。';
+
+  @override
+  String get auraErrorServer => '暂时不可用，请稍后再试。';
+
+  @override
+  String get auraErrorBadResponse => '无法读取Aura的回复，请稍后再试。';
 
   @override
   String get auraQuickReply1 => '我想倾诉一下';
@@ -746,6 +761,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsTestNotificationSnackbar => '测试通知已发送——请检查通知栏';
 
   @override
+  String get settingsTestNotificationDisabledSnackbar => '请先打开上方的通知开关';
+
+  @override
   String get settingsDeleteAccount => '删除账户';
 
   @override
@@ -814,6 +832,36 @@ class AppLocalizationsZh extends AppLocalizations {
   String get geminiTestConnectionButton => '测试连接';
 
   @override
+  String get geminiApiKeyLabel => 'Gemini API 密钥';
+
+  @override
+  String get geminiApiKeyHint => '粘贴你的 API 密钥';
+
+  @override
+  String get geminiApiKeySaveButton => '保存';
+
+  @override
+  String get geminiApiKeySavedSnackbar => 'API 密钥已保存';
+
+  @override
+  String get geminiGetApiKeyLink => '获取免费 API 密钥';
+
+  @override
+  String get entryShareCaption => '我的心情记录 —— 通过 Moodlet 分享 🌙';
+
+  @override
+  String get notificationTitle => 'Moodlet';
+
+  @override
+  String get notificationBody => '今天过得怎么样？花一点时间回顾一下吧。🌙';
+
+  @override
+  String get notificationChannelName => '每日提醒';
+
+  @override
+  String get notificationChannelDescription => '温柔地提醒你每天花点时间关心自己。';
+
+  @override
   String get actionNo => '否';
 
   @override
@@ -846,6 +894,27 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get calendarNoEntriesYet => '这一天还没有记录。';
+
+  @override
+  String get calendarWeekdaySun => '日';
+
+  @override
+  String get calendarWeekdayMon => '一';
+
+  @override
+  String get calendarWeekdayTue => '二';
+
+  @override
+  String get calendarWeekdayWed => '三';
+
+  @override
+  String get calendarWeekdayThu => '四';
+
+  @override
+  String get calendarWeekdayFri => '五';
+
+  @override
+  String get calendarWeekdaySat => '六';
 
   @override
   String get journalNothingLoggedYet => '今天还没有记录。';
@@ -1146,12 +1215,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get deleteAccountMoodHistorySubtitle => '你所记录的情绪历程';
 
   @override
-  String get deleteAccountInsightsTitle => '个人洞察';
-
-  @override
-  String get deleteAccountInsightsSubtitle => 'AI 生成的规律与总结';
-
-  @override
   String get deleteAccountConfirmPassword => '请输入密码以继续';
 
   @override
@@ -1164,29 +1227,41 @@ class AppLocalizationsZh extends AppLocalizations {
   String get deleteAccountDeleteButton => '删除我的账户';
 
   @override
-  String get tourInsightsTab => '在这里查看你的心情趋势和规律。';
+  String get tourInsightsTab => '在这里查看你的心情趋势和规律';
 
   @override
-  String get tourTodayTab => '记录你此刻的感受。';
+  String get tourTodayTab => '记录你此刻的感受';
 
   @override
-  String get tourJournalTab => '阅读和撰写你的日记。';
+  String get tourJournalTab => '阅读和撰写你的日记';
 
   @override
-  String get tourCalendarTab => '按日期浏览过去的任意一天。';
+  String get tourCalendarTab => '按日期浏览过去的任意一天';
 
   @override
-  String get tourAuraFab => '认识 Aura——随时点击开启暖心对话。';
+  String get tourAuraFab => '认识 Aura——随时点击开启暖心对话';
 
   @override
-  String get tourCheckInCard => '也可以直接在这里打卡，无需切换页面。';
-
-  @override
-  String get tourJournalActions => '为记录添加照片、语音或标签。';
-
-  @override
-  String get tourSettingsIcon => '偏好设置、隐私等都在这里。';
+  String get tourSettingsIcon => '偏好设置、隐私等都在这里';
 
   @override
   String get settingsTakeTour => '开始导览';
+
+  @override
+  String get tourSkip => '跳过';
+
+  @override
+  String get tourNext => '下一步';
+
+  @override
+  String get tourDone => '知道了';
+
+  @override
+  String get loadingPreparingJournal => '正在准备你的日记...';
+
+  @override
+  String get auraGreeting => '你好！我是 Aura，你的贴心伙伴。你今天感觉怎么样？';
+
+  @override
+  String get tourAuraToggle => '在这里开启 Aura，获得一个贴心的聊天伙伴。';
 }

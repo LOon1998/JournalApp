@@ -12,7 +12,11 @@
          running.
 
          This Theme is only used starting with V2 of Flutter's Android embedding. -->
+    <!-- windowBackground is transparent, not ?android:colorBackground — see
+         values-night's copy of this file for why (same reasoning applies
+         in light mode, just less noticeable since Light's fallback is
+         white rather than black). -->
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <item name="android:windowBackground">?android:colorBackground</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
     </style>
 </resources>

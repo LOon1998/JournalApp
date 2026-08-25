@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../data/app_state.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/journal_entry.dart';
+import '../theme/activity_icons.dart';
 import '../theme/app_theme.dart';
 import '../services/text_measure.dart';
 import '../widgets/app_snackbar.dart';
@@ -94,6 +95,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final daysInMonth = DateUtils.getDaysInMonth(_visibleMonth.year, _visibleMonth.month);
     final firstWeekday = DateTime(_visibleMonth.year, _visibleMonth.month, 1).weekday % 7; // Sun=0
     final selectedEntries = appState.entriesOn(_selectedDay);
+    // appState.entriesOn(date) is now itself a cached, O(1)-per-day-cell
+    // lookup (see AppState's own doc on its entries caching) — this used
+    // to keep its own separate per-build grouping specifically to avoid
+    // that call's old full scan-and-sort over *every* entry ever written,
+    // once for each of a month's ~35-42 day cells. Now that the
+    // expensive part lives in AppState itself (built once, and only when
+    // the entries actually change, not on every Calendar rebuild the way
+    // this local version was), calling it directly per cell costs the
+    // same as the map lookup this replaced.
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
@@ -101,7 +111,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(DateFormat.yMMMM().format(_visibleMonth),
+            Text(DateFormat.yMMMM(Localizations.localeOf(context).toString()).format(_visibleMonth),
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600)),
             Row(
               children: [
@@ -119,7 +129,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
             children: [
               Row(
                 children: [
-                  for (final d in const ['S', 'M', 'T', 'W', 'T', 'F', 'S'])
+                  for (final d in [
+                    l10n.calendarWeekdaySun,
+                    l10n.calendarWeekdayMon,
+                    l10n.calendarWeekdayTue,
+                    l10n.calendarWeekdayWed,
+                    l10n.calendarWeekdayThu,
+                    l10n.calendarWeekdayFri,
+                    l10n.calendarWeekdaySat,
+                  ])
                     Expanded(
                       child: Center(
                         child: Text(d,
@@ -166,7 +184,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           key: _selectedDayKey,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(DateFormat.MMMMd().format(_selectedDay),
+            Text(DateFormat.MMMMd(Localizations.localeOf(context).toString()).format(_selectedDay),
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
             EntriesHistoryRow(
               entryCount: selectedEntries.length,
@@ -435,7 +453,7 @@ class _EntryDetailCard extends StatelessWidget {
             context: context,
             builder: (context) => AlertDialog(
               title: Text(l10n.entryDeleteConfirmTitle),
-              content: Text(l10n.entryDeleteConfirmBody(entry.title)),
+              content: Text(l10n.entryDeleteConfirmBody(entryDisplayTitle(context, entry))),
               actions: [
                 TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(l10n.actionNo)),
                 TextButton(
@@ -501,7 +519,7 @@ class _EntryDetailCard extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(entry.title,
+                                Text(entryDisplayTitle(context, entry),
                                     style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: moodTextColor)),
                                 if (hasCustomTitle) ...[
                                   const SizedBox(height: 2),
@@ -521,7 +539,9 @@ class _EntryDetailCard extends StatelessWidget {
                             Icon(Icons.mic, size: 14, color: scheme.outline),
                             const SizedBox(width: 4),
                           ],
-                          Text(DateFormat('h:mm a').format(entry.dateTime),
+                          Text(
+                              DateFormat('h:mm a', Localizations.localeOf(context).toString())
+                                  .format(entry.dateTime),
                               style: const TextStyle(fontSize: 12, color: Colors.black)),
                           if (hasOverflow)
                             IconButton(
@@ -555,7 +575,7 @@ class _EntryDetailCard extends StatelessWidget {
                           spacing: 6,
                           runSpacing: 6,
                           children: [
-                            for (final a in visibleTags) MiniChip(label: a),
+                            for (final a in visibleTags) MiniChip(label: activityLabel(context, a)),
                             if (!expanded && hiddenTagCount > 0) const MiniChip(label: '...'),
                           ],
                         ),

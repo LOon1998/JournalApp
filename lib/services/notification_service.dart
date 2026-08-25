@@ -1,8 +1,15 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
+import '../l10n/generated/app_localizations.dart';
+import '../l10n/generated/app_localizations_en.dart';
+import '../l10n/generated/app_localizations_zh.dart';
+import 'app_lock_service.dart';
+import 'device_language.dart';
 
 /// Wraps flutter_local_notifications for the one thing this app actually
 /// needs: a daily reminder to journal, toggled by Settings' "Notifications"
@@ -18,6 +25,16 @@ class NotificationService {
 
   static final _plugin = FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
+
+  // No BuildContext exists here — this fires from a background alarm long
+  // after any screen that could have supplied one, and even the
+  // *scheduling* call site (AppState.setNotificationsEnabled) is on the
+  // data layer, not a widget. DeviceLanguage.current is the same
+  // context-free source main.dart's own pre-sign-in locale already reads
+  // from (see its doc comment), so this follows whichever language was
+  // actually picked on this device instead of defaulting to English.
+  static AppLocalizations get _l10n =>
+      DeviceLanguage.current == 'zh' ? AppLocalizationsZh() : AppLocalizationsEn();
 
   static const _dailyReminderId = 1;
   // 8 PM — a reasonable default "look back on your day" time, matching
@@ -48,20 +65,70 @@ class NotificationService {
     _initialized = true;
   }
 
+  // Local-only (never synced via AppState/Firestore, same reasoning as
+  // AppLockService's own pattern hash) marker for "this device has asked
+  // the OS for notification permission at least once before" — the one
+  // thing permission_handler's PermissionStatus can't tell us on its own.
+  // Settings' own "Open Notification Settings" fallback link needs this to
+  // tell a plain, still-pending "denied" (there's a real OS dialog left to
+  // trigger — the switch itself should keep handling that) apart from a
+  // "denied" that's actually stuck: some OEM Android skins misreport a
+  // permanently-denied permission as plain "denied" rather than
+  // permission_handler's own PermissionStatus.permanentlyDenied, so the
+  // switch's own re-request silently does nothing and the OS never shows
+  // its dialog again. Once we know for a fact a request has already been
+  // made and still didn't land on granted, the fallback link is the only
+  // thing left that's guaranteed to work, regardless of which flavor of
+  // "not granted" permission_handler thinks this is.
+  static const _requestedBeforeKey = 'notification_permission_requested_before';
+
+  static Future<bool> hasRequestedPermissionBefore() async {
+    if (kIsWeb) return false;
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_requestedBeforeKey) ?? false;
+  }
+
+  /// Richer tri-state read of whether the OS will actually show this
+  /// app's notifications — separate from AppState.notificationsEnabled,
+  /// which is just this app's *own* in-app preference. Someone can block
+  /// notifications for this app entirely from their phone's own system
+  /// settings, outside the app altogether, without ever touching the
+  /// in-app toggle. permission_handler's PermissionStatus (not
+  /// flutter_local_notifications' own areNotificationsEnabled(), a plain
+  /// bool) is what actually distinguishes "never asked yet" — there's
+  /// still a real, working OS prompt to trigger — from "permanently
+  /// denied" — only fixable via the OS's own settings now. Null on web,
+  /// where notification permission isn't a concept the same way.
+  static Future<PermissionStatus?> permissionStatus() async {
+    if (kIsWeb) return null;
+    return Permission.notification.status;
+  }
+
   /// Asks the OS for permission to show notifications at all — required
   /// on Android 13+ and iOS before anything can actually display. Safe to
-  /// call repeatedly: the OS itself only ever prompts the person once,
-  /// silently no-op-ing on every call after that (whichever way they
-  /// answered).
-  static Future<void> requestPermission() async {
-    if (kIsWeb) return;
-    await _ensureInitialized();
-    await _plugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
-    await _plugin
-        .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
-        ?.requestPermissions(alert: true, badge: true, sound: true);
+  /// call repeatedly: if already permanently denied, this just resolves
+  /// straight back to that same status without showing anything — the
+  /// OS's own rule (it only ever prompts once), not this app's. Callers
+  /// that want to steer someone to system settings instead of silently
+  /// hitting that wall should check [permissionStatus] first, the way
+  /// Settings' own notification row does.
+  static Future<PermissionStatus> requestPermission() async {
+    if (kIsWeb) return PermissionStatus.granted;
+    // The system's own notification-permission dialog can briefly steal
+    // focus the same way switching away to another app does — see
+    // ExternalActivityGuard's own doc for why this stops that from being
+    // mistaken for actually leaving and re-locking the app (if Pattern
+    // Lock is on) the moment it returns.
+    ExternalActivityGuard.begin();
+    final PermissionStatus status;
+    try {
+      status = await Permission.notification.request();
+    } finally {
+      ExternalActivityGuard.end();
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_requestedBeforeKey, true);
+    return status;
   }
 
   /// Schedules (or reschedules, if one's already set) the daily reminder.
@@ -73,19 +140,20 @@ class NotificationService {
     if (kIsWeb) return;
     await _ensureInitialized();
     await requestPermission();
+    final l10n = _l10n;
     await _plugin.zonedSchedule(
       _dailyReminderId,
-      'Moodlet',
-      'How was your day? Take a moment to reflect. 🌙',
+      l10n.notificationTitle,
+      l10n.notificationBody,
       _nextInstanceOfReminderTime(),
-      const NotificationDetails(
+      NotificationDetails(
         android: AndroidNotificationDetails(
           'daily_reminder',
-          'Daily Reminder',
-          channelDescription: 'A gentle daily nudge to check in with yourself.',
+          l10n.notificationChannelName,
+          channelDescription: l10n.notificationChannelDescription,
           importance: Importance.defaultImportance,
         ),
-        iOS: DarwinNotificationDetails(),
+        iOS: const DarwinNotificationDetails(),
       ),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       // Required by this version of the plugin's iOS scheduling API —
@@ -117,18 +185,19 @@ class NotificationService {
   static Future<void> showTestNotification() async {
     await _ensureInitialized();
     await requestPermission();
+    final l10n = _l10n;
     await _plugin.show(
       _testNotificationId,
-      'Moodlet',
-      'How was your day? Take a moment to reflect. 🌙',
-      const NotificationDetails(
+      l10n.notificationTitle,
+      l10n.notificationBody,
+      NotificationDetails(
         android: AndroidNotificationDetails(
           'daily_reminder',
-          'Daily Reminder',
-          channelDescription: 'A gentle daily nudge to check in with yourself.',
+          l10n.notificationChannelName,
+          channelDescription: l10n.notificationChannelDescription,
           importance: Importance.defaultImportance,
         ),
-        iOS: DarwinNotificationDetails(),
+        iOS: const DarwinNotificationDetails(),
       ),
     );
   }

@@ -8,11 +8,19 @@ plugins {
 android {
     namespace = "com.lumina.lumina"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Pinned to the NDK version already installed on this machine instead
+    // of flutter.ndkVersion (28.2.13676358) — AGP's auto-download of that
+    // newer version keeps failing partway through in this environment,
+    // leaving a broken ndk-bundle folder ("did not have a
+    // source.properties file") on every build. No plugin in this app
+    // needs a newer NDK than this.
+    ndkVersion = "21.4.7075529"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        // Required by flutter_local_notifications.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -41,4 +49,8 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

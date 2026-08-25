@@ -5,8 +5,12 @@ import 'privacy_policy_screen.dart';
 
 /// Version shown at the bottom of this screen — kept in sync with
 /// pubspec.yaml's own `version:` field by hand (this project doesn't pull
-/// in package_info_plus just to read that value back at runtime).
-const _appVersion = '1.0.0';
+/// in package_info_plus just to read that value back at runtime). The
+/// "(N)" is pubspec.yaml's build number (the part after the `+`), bumped
+/// on every build — that's what actually changes build to build, so it's
+/// what makes this readable in-app as confirmation of which build is
+/// currently installed.
+const _appVersion = '1.0.0 (52)';
 
 /// Reached from Settings' "About Moodlet" row — brand story, core values,
 /// and version/legal info. Matches the provided web mockup's layout and

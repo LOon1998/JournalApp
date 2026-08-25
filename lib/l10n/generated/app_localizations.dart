@@ -368,6 +368,18 @@ abstract class AppLocalizations {
   /// **'Notifications'**
   String get settingsNotifications;
 
+  /// No description provided for @settingsNotificationsBlockedByOs.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked in your phone\'s system settings — enable notifications for Moodlet there first.'**
+  String get settingsNotificationsBlockedByOs;
+
+  /// No description provided for @settingsOpenSystemNotificationSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Notification Settings'**
+  String get settingsOpenSystemNotificationSettings;
+
   /// No description provided for @settingsLanguage.
   ///
   /// In en, this message translates to:
@@ -482,12 +494,6 @@ abstract class AppLocalizations {
   /// **'Pattern Lock set'**
   String get patternLockSetSnackbar;
 
-  /// No description provided for @helpSupportEmailFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Couldn\'t open your email app — you can reach us at {email}'**
-  String helpSupportEmailFailed(String email);
-
   /// No description provided for @helpSupportHeroTitle.
   ///
   /// In en, this message translates to:
@@ -497,7 +503,7 @@ abstract class AppLocalizations {
   /// No description provided for @helpSupportHeroSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'A couple of quick answers below — or reach out directly and we\'ll get back to you.'**
+  /// **'A couple of quick answers below.'**
   String get helpSupportHeroSubtitle;
 
   /// No description provided for @helpSupportFaqTitle.
@@ -529,18 +535,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Yes — sign in with the same account on any device and your journal, mood history, and settings will all be right there. Pattern Lock is the only exception — it\'s set per-device, so you\'ll set it up again on a new one.'**
   String get helpSupportFaq2A;
-
-  /// No description provided for @helpSupportStillNeedHand.
-  ///
-  /// In en, this message translates to:
-  /// **'Still need a hand?'**
-  String get helpSupportStillNeedHand;
-
-  /// No description provided for @helpSupportEmailUs.
-  ///
-  /// In en, this message translates to:
-  /// **'Email us — {email}'**
-  String helpSupportEmailUs(String email);
 
   /// No description provided for @privacyPolicyTitle.
   ///
@@ -1160,6 +1154,12 @@ abstract class AppLocalizations {
   /// **'Password reset email sent to {email} — check your spam/junk folder if it doesn\'t show up.'**
   String authPasswordResetSent(String email);
 
+  /// No description provided for @authRememberMe.
+  ///
+  /// In en, this message translates to:
+  /// **'Remember me'**
+  String get authRememberMe;
+
   /// No description provided for @auraChatTitle.
   ///
   /// In en, this message translates to:
@@ -1201,6 +1201,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Currently not available for chat'**
   String get auraNotAvailableHint;
+
+  /// No description provided for @auraErrorNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reach Aura — check your connection and try again.'**
+  String get auraErrorNetwork;
+
+  /// No description provided for @auraErrorBadRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'Aura isn\'t set up correctly — check your API key in Settings.'**
+  String get auraErrorBadRequest;
+
+  /// No description provided for @auraErrorDailyLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Not available — today\'s usage limit has been reached. Try again tomorrow.'**
+  String get auraErrorDailyLimit;
+
+  /// No description provided for @auraErrorRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Aura\'s a little busy right now — try again in a few minutes.'**
+  String get auraErrorRateLimited;
+
+  /// No description provided for @auraErrorServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Not available right now. Try again in a moment.'**
+  String get auraErrorServer;
+
+  /// No description provided for @auraErrorBadResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t read Aura\'s response. Try again in a moment.'**
+  String get auraErrorBadResponse;
 
   /// No description provided for @auraQuickReply1.
   ///
@@ -1442,6 +1478,12 @@ abstract class AppLocalizations {
   /// **'Test notification sent — check your notification shade'**
   String get settingsTestNotificationSnackbar;
 
+  /// No description provided for @settingsTestNotificationDisabledSnackbar.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on Notifications above first'**
+  String get settingsTestNotificationDisabledSnackbar;
+
   /// No description provided for @settingsDeleteAccount.
   ///
   /// In en, this message translates to:
@@ -1574,6 +1616,66 @@ abstract class AppLocalizations {
   /// **'Test Connection'**
   String get geminiTestConnectionButton;
 
+  /// No description provided for @geminiApiKeyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Gemini API Key'**
+  String get geminiApiKeyLabel;
+
+  /// No description provided for @geminiApiKeyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste your API key'**
+  String get geminiApiKeyHint;
+
+  /// No description provided for @geminiApiKeySaveButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get geminiApiKeySaveButton;
+
+  /// No description provided for @geminiApiKeySavedSnackbar.
+  ///
+  /// In en, this message translates to:
+  /// **'API key saved'**
+  String get geminiApiKeySavedSnackbar;
+
+  /// No description provided for @geminiGetApiKeyLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Get a free API key'**
+  String get geminiGetApiKeyLink;
+
+  /// No description provided for @entryShareCaption.
+  ///
+  /// In en, this message translates to:
+  /// **'My mood insight — shared with Moodlet 🌙'**
+  String get entryShareCaption;
+
+  /// No description provided for @notificationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Moodlet'**
+  String get notificationTitle;
+
+  /// No description provided for @notificationBody.
+  ///
+  /// In en, this message translates to:
+  /// **'How was your day? Take a moment to reflect. 🌙'**
+  String get notificationBody;
+
+  /// No description provided for @notificationChannelName.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily Reminder'**
+  String get notificationChannelName;
+
+  /// No description provided for @notificationChannelDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'A gentle daily nudge to check in with yourself.'**
+  String get notificationChannelDescription;
+
   /// No description provided for @actionNo.
   ///
   /// In en, this message translates to:
@@ -1633,6 +1735,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No entries on this day yet.'**
   String get calendarNoEntriesYet;
+
+  /// No description provided for @calendarWeekdaySun.
+  ///
+  /// In en, this message translates to:
+  /// **'S'**
+  String get calendarWeekdaySun;
+
+  /// No description provided for @calendarWeekdayMon.
+  ///
+  /// In en, this message translates to:
+  /// **'M'**
+  String get calendarWeekdayMon;
+
+  /// No description provided for @calendarWeekdayTue.
+  ///
+  /// In en, this message translates to:
+  /// **'T'**
+  String get calendarWeekdayTue;
+
+  /// No description provided for @calendarWeekdayWed.
+  ///
+  /// In en, this message translates to:
+  /// **'W'**
+  String get calendarWeekdayWed;
+
+  /// No description provided for @calendarWeekdayThu.
+  ///
+  /// In en, this message translates to:
+  /// **'T'**
+  String get calendarWeekdayThu;
+
+  /// No description provided for @calendarWeekdayFri.
+  ///
+  /// In en, this message translates to:
+  /// **'F'**
+  String get calendarWeekdayFri;
+
+  /// No description provided for @calendarWeekdaySat.
+  ///
+  /// In en, this message translates to:
+  /// **'S'**
+  String get calendarWeekdaySat;
 
   /// No description provided for @journalNothingLoggedYet.
   ///
@@ -2156,18 +2300,6 @@ abstract class AppLocalizations {
   /// **'Your tracked emotional journey'**
   String get deleteAccountMoodHistorySubtitle;
 
-  /// No description provided for @deleteAccountInsightsTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Personal Insights'**
-  String get deleteAccountInsightsTitle;
-
-  /// No description provided for @deleteAccountInsightsSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'AI-generated patterns and summaries'**
-  String get deleteAccountInsightsSubtitle;
-
   /// No description provided for @deleteAccountConfirmPassword.
   ///
   /// In en, this message translates to:
@@ -2222,18 +2354,6 @@ abstract class AppLocalizations {
   /// **'Meet Aura — tap anytime for a supportive chat.'**
   String get tourAuraFab;
 
-  /// No description provided for @tourCheckInCard.
-  ///
-  /// In en, this message translates to:
-  /// **'Or check in right from here, without leaving this screen.'**
-  String get tourCheckInCard;
-
-  /// No description provided for @tourJournalActions.
-  ///
-  /// In en, this message translates to:
-  /// **'Add photos, voice notes, or tags to any entry.'**
-  String get tourJournalActions;
-
   /// No description provided for @tourSettingsIcon.
   ///
   /// In en, this message translates to:
@@ -2245,6 +2365,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Take a Tour'**
   String get settingsTakeTour;
+
+  /// No description provided for @tourSkip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get tourSkip;
+
+  /// No description provided for @tourNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next'**
+  String get tourNext;
+
+  /// No description provided for @tourDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Got it'**
+  String get tourDone;
+
+  /// No description provided for @loadingPreparingJournal.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing your journal...'**
+  String get loadingPreparingJournal;
+
+  /// No description provided for @auraGreeting.
+  ///
+  /// In en, this message translates to:
+  /// **'Hi there! I\'m Aura, your mindful companion. How are you feeling today?'**
+  String get auraGreeting;
+
+  /// No description provided for @tourAuraToggle.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn Aura on here for a supportive chat companion.'**
+  String get tourAuraToggle;
 }
 
 class _AppLocalizationsDelegate

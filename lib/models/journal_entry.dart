@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show BuildContext;
+import '../l10n/generated/app_localizations.dart';
 import '../theme/app_theme.dart';
 
 /// A single mood check-in or journal entry.
@@ -96,4 +98,17 @@ class JournalEntry {
         voiceNote: clearVoiceNote ? null : (voiceNote ?? this.voiceNote),
         themeName: themeName,
       );
+}
+
+/// The title to actually display for [entry] — its own [JournalEntry.title]
+/// verbatim if someone typed a real custom one, or a freshly re-localized
+/// "Feeling {mood}" if it's still the untouched default. [JournalEntry.title]
+/// itself is always stored in fixed English regardless of the UI language
+/// (see [Mood.label]'s doc for why), so displaying it as-is would show
+/// English text like "Feeling Good" even in a Chinese-language app — this
+/// is what every read-only display of an entry's title should use instead.
+String entryDisplayTitle(BuildContext context, JournalEntry entry) {
+  final isDefaultTitle = entry.title == 'Feeling ${entry.mood.label}';
+  if (!isDefaultTitle) return entry.title;
+  return AppLocalizations.of(context)!.entryFeelingMood(moodLabel(context, entry.mood));
 }

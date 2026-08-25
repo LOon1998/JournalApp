@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../services/app_lock_service.dart';
 import '../services/file_bytes.dart';
 
 /// Shows a modal recording sheet (mic auto-starts on open) and returns
@@ -61,7 +62,18 @@ class _VoiceRecorderSheetState extends State<_VoiceRecorderSheet> {
     // indication anything was wrong. That's the "can't record" bug:
     // everything downstream of a failed start() was silently skipped.
     try {
-      final granted = await _recorder.hasPermission();
+      // The system's own microphone-permission dialog can briefly steal
+      // focus the same way switching away to another app does — see
+      // ExternalActivityGuard's own doc for why this stops that from
+      // being mistaken for actually leaving and re-locking the app (if
+      // Pattern Lock is on) the moment it returns.
+      ExternalActivityGuard.begin();
+      final bool granted;
+      try {
+        granted = await _recorder.hasPermission();
+      } finally {
+        ExternalActivityGuard.end();
+      }
       if (!mounted) return;
       if (!granted) {
         setState(() => _error = AppLocalizations.of(context)!.voiceRecorderMicPermissionDenied);

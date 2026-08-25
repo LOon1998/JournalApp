@@ -144,6 +144,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsNotifications => 'Notifications';
 
   @override
+  String get settingsNotificationsBlockedByOs =>
+      'Blocked in your phone\'s system settings — enable notifications for Moodlet there first.';
+
+  @override
+  String get settingsOpenSystemNotificationSettings =>
+      'Open Notification Settings';
+
+  @override
   String get settingsLanguage => 'Language';
 
   @override
@@ -203,16 +211,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get patternLockSetSnackbar => 'Pattern Lock set';
 
   @override
-  String helpSupportEmailFailed(String email) {
-    return 'Couldn\'t open your email app — you can reach us at $email';
-  }
-
-  @override
   String get helpSupportHeroTitle => 'We\'re here to help';
 
   @override
-  String get helpSupportHeroSubtitle =>
-      'A couple of quick answers below — or reach out directly and we\'ll get back to you.';
+  String get helpSupportHeroSubtitle => 'A couple of quick answers below.';
 
   @override
   String get helpSupportFaqTitle => 'Frequently Asked Questions';
@@ -230,14 +232,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get helpSupportFaq2A =>
       'Yes — sign in with the same account on any device and your journal, mood history, and settings will all be right there. Pattern Lock is the only exception — it\'s set per-device, so you\'ll set it up again on a new one.';
-
-  @override
-  String get helpSupportStillNeedHand => 'Still need a hand?';
-
-  @override
-  String helpSupportEmailUs(String email) {
-    return 'Email us — $email';
-  }
 
   @override
   String get privacyPolicyTitle => 'Privacy Policy';
@@ -606,6 +600,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get authRememberMe => 'Remember me';
+
+  @override
   String get auraChatTitle => 'Aura AI';
 
   @override
@@ -626,6 +623,30 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get auraNotAvailableHint => 'Currently not available for chat';
+
+  @override
+  String get auraErrorNetwork =>
+      'Could not reach Aura — check your connection and try again.';
+
+  @override
+  String get auraErrorBadRequest =>
+      'Aura isn\'t set up correctly — check your API key in Settings.';
+
+  @override
+  String get auraErrorDailyLimit =>
+      'Not available — today\'s usage limit has been reached. Try again tomorrow.';
+
+  @override
+  String get auraErrorRateLimited =>
+      'Aura\'s a little busy right now — try again in a few minutes.';
+
+  @override
+  String get auraErrorServer =>
+      'Not available right now. Try again in a moment.';
+
+  @override
+  String get auraErrorBadResponse =>
+      'Couldn\'t read Aura\'s response. Try again in a moment.';
 
   @override
   String get auraQuickReply1 => 'I need to vent';
@@ -765,6 +786,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Test notification sent — check your notification shade';
 
   @override
+  String get settingsTestNotificationDisabledSnackbar =>
+      'Turn on Notifications above first';
+
+  @override
   String get settingsDeleteAccount => 'Delete Account';
 
   @override
@@ -834,6 +859,38 @@ class AppLocalizationsEn extends AppLocalizations {
   String get geminiTestConnectionButton => 'Test Connection';
 
   @override
+  String get geminiApiKeyLabel => 'Gemini API Key';
+
+  @override
+  String get geminiApiKeyHint => 'Paste your API key';
+
+  @override
+  String get geminiApiKeySaveButton => 'Save';
+
+  @override
+  String get geminiApiKeySavedSnackbar => 'API key saved';
+
+  @override
+  String get geminiGetApiKeyLink => 'Get a free API key';
+
+  @override
+  String get entryShareCaption => 'My mood insight — shared with Moodlet 🌙';
+
+  @override
+  String get notificationTitle => 'Moodlet';
+
+  @override
+  String get notificationBody =>
+      'How was your day? Take a moment to reflect. 🌙';
+
+  @override
+  String get notificationChannelName => 'Daily Reminder';
+
+  @override
+  String get notificationChannelDescription =>
+      'A gentle daily nudge to check in with yourself.';
+
+  @override
   String get actionNo => 'No';
 
   @override
@@ -866,6 +923,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get calendarNoEntriesYet => 'No entries on this day yet.';
+
+  @override
+  String get calendarWeekdaySun => 'S';
+
+  @override
+  String get calendarWeekdayMon => 'M';
+
+  @override
+  String get calendarWeekdayTue => 'T';
+
+  @override
+  String get calendarWeekdayWed => 'W';
+
+  @override
+  String get calendarWeekdayThu => 'T';
+
+  @override
+  String get calendarWeekdayFri => 'F';
+
+  @override
+  String get calendarWeekdaySat => 'S';
 
   @override
   String get journalNothingLoggedYet => 'Nothing logged yet today.';
@@ -1190,13 +1268,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your tracked emotional journey';
 
   @override
-  String get deleteAccountInsightsTitle => 'Personal Insights';
-
-  @override
-  String get deleteAccountInsightsSubtitle =>
-      'AI-generated patterns and summaries';
-
-  @override
   String get deleteAccountConfirmPassword =>
       'Confirm your password to continue';
 
@@ -1225,16 +1296,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tourAuraFab => 'Meet Aura — tap anytime for a supportive chat.';
 
   @override
-  String get tourCheckInCard =>
-      'Or check in right from here, without leaving this screen.';
-
-  @override
-  String get tourJournalActions =>
-      'Add photos, voice notes, or tags to any entry.';
-
-  @override
   String get tourSettingsIcon => 'Preferences, privacy, and more live here.';
 
   @override
   String get settingsTakeTour => 'Take a Tour';
+
+  @override
+  String get tourSkip => 'Skip';
+
+  @override
+  String get tourNext => 'Next';
+
+  @override
+  String get tourDone => 'Got it';
+
+  @override
+  String get loadingPreparingJournal => 'Preparing your journal...';
+
+  @override
+  String get auraGreeting =>
+      'Hi there! I\'m Aura, your mindful companion. How are you feeling today?';
+
+  @override
+  String get tourAuraToggle =>
+      'Turn Aura on here for a supportive chat companion.';
 }

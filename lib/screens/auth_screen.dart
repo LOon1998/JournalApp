@@ -1,12 +1,26 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../services/auth_service.dart';
 import '../services/media_capture.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_snackbar.dart';
 import '../widgets/floating_card.dart';
+
+// Kept in sync with pubspec.yaml's own `version:` field by hand, same as
+// about_screen.dart's own copy of this constant (see its doc comment for
+// why this isn't read from package_info_plus at runtime instead, and for
+// what the "(N)" is) — bump both together.
+const _appVersion = '1.0.0 (52)';
+
+// SharedPreferences key for "Remember me" — just the email, not the
+// password. Session persistence across app restarts is already handled by
+// Firebase Auth itself (defaults to persisting on Android/iOS), so this is
+// purely a convenience to have the email field pre-filled next time
+// someone signs in on this device, not what keeps them signed in.
+const _rememberedEmailKey = 'lumina_remembered_email';
 
 /// Shown whenever there's no signed-in Firebase user — sign in for
 /// returning users, sign up for new ones, toggled by [_isSignUp]. Once
@@ -48,10 +62,45 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _submitting = false;
   String? _error;
 
+  // Sign-in only (see _rememberedEmailKey's doc comment). Defaults to on —
+  // pre-filling the email is the friendlier default, and unchecking it is
+  // one tap away for anyone on a shared device who'd rather not.
+  bool _rememberMe = true;
+
   // Only ever set in sign-up mode — carried through to AuthService.signUp,
   // which hands it off (see its pending-avatar mechanism) for main.dart to
   // seed onto the freshly-created account's AppState.
   String? _avatarBase64;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberedEmail();
+  }
+
+  Future<void> _loadRememberedEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_rememberedEmailKey);
+    if (saved == null || !mounted) return;
+    setState(() => _emailController.text = saved);
+  }
+
+  // Switching modes starts each one with a clean slate — otherwise
+  // whatever was typed (or pre-filled by Remember Me) in Sign In carries
+  // straight over into Sign Up, and vice versa, which reads as the app
+  // reusing someone else's credentials rather than just an empty form.
+  void _toggleMode() {
+    setState(() {
+      _isSignUp = !_isSignUp;
+      _error = null;
+      _emailController.clear();
+      _passwordController.clear();
+      _avatarBase64 = null;
+    });
+    // Sign In still gets its own remembered email back, same as a fresh
+    // launch of the screen would.
+    if (!_isSignUp) _loadRememberedEmail();
+  }
 
   @override
   void dispose() {
@@ -84,6 +133,12 @@ class _AuthScreenState extends State<AuthScreen> {
         );
       } else {
         await _authService.signIn(email: _emailController.text, password: _passwordController.text);
+        final prefs = await SharedPreferences.getInstance();
+        if (_rememberMe) {
+          await prefs.setString(_rememberedEmailKey, _emailController.text.trim());
+        } else {
+          await prefs.remove(_rememberedEmailKey);
+        }
       }
       // No further navigation needed here — main.dart's authStateChanges
       // listener picks up the new session and swaps this screen out (via
@@ -213,7 +268,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                           backgroundImage:
                                               _avatarBase64 != null ? MemoryImage(base64Decode(_avatarBase64!)) : null,
                                           child: _avatarBase64 == null
-                                              ? Icon(Icons.self_improvement, size: 44, color: scheme.onPrimaryContainer)
+                                              ? Icon(Icons.person, size: 44, color: scheme.onPrimaryContainer)
                                               : null,
                                         ),
                                         Positioned(
@@ -279,12 +334,35 @@ class _AuthScreenState extends State<AuthScreen> {
                                 },
                               ),
                               if (!_isSignUp)
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton(
-                                    onPressed: _submitting ? null : _forgotPassword,
-                                    child: Text(l10n.authForgotPassword),
-                                  ),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    GestureDetector(
+                                      onTap: _submitting
+                                          ? null
+                                          : () => setState(() => _rememberMe = !_rememberMe),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Checkbox(
+                                            value: _rememberMe,
+                                            visualDensity: VisualDensity.compact,
+                                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                            onChanged: _submitting
+                                                ? null
+                                                : (v) => setState(() => _rememberMe = v ?? true),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(l10n.authRememberMe,
+                                              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
+                                        ],
+                                      ),
+                                    ),
+                                    TextButton(
+                                      onPressed: _submitting ? null : _forgotPassword,
+                                      child: Text(l10n.authForgotPassword),
+                                    ),
+                                  ],
                                 )
                               else
                                 const SizedBox(height: 8),
@@ -329,12 +407,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           Text(_isSignUp ? l10n.authAlreadyHaveAccount : l10n.authDontHaveAccount,
                               style: TextStyle(color: scheme.onSurfaceVariant)),
                           TextButton(
-                            onPressed: _submitting
-                                ? null
-                                : () => setState(() {
-                                      _isSignUp = !_isSignUp;
-                                      _error = null;
-                                    }),
+                            onPressed: _submitting ? null : _toggleMode,
                             child: Text(_isSignUp ? l10n.authSignIn : l10n.authSignUp),
                           ),
                         ],
@@ -346,6 +419,8 @@ class _AuthScreenState extends State<AuthScreen> {
                         icon: Icon(Icons.science_outlined, size: 16, color: scheme.outline),
                         label: Text(l10n.authQuickTestSignIn, style: TextStyle(color: scheme.outline, fontSize: 12)),
                       ),
+                      const SizedBox(height: 4),
+                      Text(l10n.aboutVersion(_appVersion), style: TextStyle(fontSize: 12, color: scheme.outline)),
                     ],
                   ),
                 ),

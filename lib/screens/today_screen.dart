@@ -116,8 +116,32 @@ class _TodayScreenState extends State<TodayScreen> {
     final scheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final atCap = AppStateScope.of(context).hasReachedDailyCap(DateTime.now());
-    const verticalPadding =
-        8.0 + 32.0; // top + bottom, matches the padding below
+    // Fixed, equal top/bottom padding — generous on both ends, not just
+    // barely enough, so the centered content never looks like it's
+    // touching the header above or the bottom nav below. A real device's
+    // system-inset reporting (this Column's centering depends on knowing
+    // the true available height) can be unreliable in a way desktop
+    // Chrome testing never surfaces, and MediaQuery.paddingOf(context)
+    // .bottom read from here turned out to not actually help: Scaffold
+    // already removes/zeroes out the bottom padding it hands to `body`
+    // whenever a bottomNavigationBar is present (see Scaffold's own
+    // _addIfNonNull call for its body slot), on the assumption the nav
+    // bar itself handles that inset — which HomeShell's LuminaBottomNav
+    // does, via its own SafeArea, but that doesn't help *this* screen's
+    // own available-height math above it. Plain fixed constants sidestep
+    // needing that reporting to be reliable at all.
+    //
+    // Equal, not asymmetric — an earlier version made bottomPadding much
+    // larger than topPadding specifically to stop "Save Mood Only" from
+    // clipping, which did fix that, but it also meant the centered
+    // content sat visibly higher than center (all the extra room landed
+    // below it, none above) — an actual reported mismatch against how
+    // this renders in Chrome's device emulation, where the padding stays
+    // symmetric. Equal values keep the visual centering honest while
+    // still being generous enough on their own to clear the bottom nav.
+    const topPadding = 56.0;
+    const bottomPadding = 56.0;
+    const verticalPadding = topPadding + bottomPadding; // matches the padding below
     // A plain ListView always sat its content at the top, leaving a big
     // empty gap underneath on any screen taller than the content itself.
     // Constraining the inner Column to *at least* the full available
@@ -154,7 +178,7 @@ class _TodayScreenState extends State<TodayScreen> {
       ),
       child: LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+        padding: const EdgeInsets.fromLTRB(24, topPadding, 24, bottomPadding),
         child: ConstrainedBox(
           constraints: BoxConstraints(
             minHeight: constraints.maxHeight - verticalPadding,

@@ -3,6 +3,39 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+// Small bounded cache of base64Decode results, shared by every
+// PhotoTile/PhotoStrip tile — these get rebuilt (and used to redecode
+// their same photo from scratch) any time their parent screen rebuilds
+// for *any* reason, not just when the photo itself changes: typing a
+// keystroke in the Journal composer above a photo row, an unrelated
+// AppState change while the Journal timeline (using PhotoStrip on every
+// row with a photo) is on screen, etc. Capped so a long journaling
+// history's worth of photos can't grow this unboundedly — the most
+// recently used ~40 photos (a generous few screens' worth) is plenty to
+// eliminate redundant redecoding in the common case (the same photo
+// rebuilding a handful of times in a row) without holding onto every
+// photo someone's ever taken.
+final _decodedPhotoCache = <String, Uint8List>{};
+const _decodedPhotoCacheLimit = 40;
+
+Uint8List _decodedPhoto(String base64Photo) {
+  final cached = _decodedPhotoCache.remove(base64Photo);
+  if (cached != null) {
+    // Re-inserting moves it to the end — a plain Map in Dart preserves
+    // insertion order, so this is what keeps "least recently used" (the
+    // first entries) evictable below without a separate ordering
+    // structure.
+    _decodedPhotoCache[base64Photo] = cached;
+    return cached;
+  }
+  final bytes = base64Decode(base64Photo);
+  _decodedPhotoCache[base64Photo] = bytes;
+  if (_decodedPhotoCache.length > _decodedPhotoCacheLimit) {
+    _decodedPhotoCache.remove(_decodedPhotoCache.keys.first);
+  }
+  return bytes;
+}
+
 void _openPhoto(BuildContext context, Uint8List bytes) => showDialog<void>(
       context: context,
       builder: (context) => Dialog(
@@ -44,7 +77,7 @@ class PhotoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bytes = base64Decode(base64Photo);
+    final bytes = _decodedPhoto(base64Photo);
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -133,7 +166,7 @@ class PhotoStrip extends StatelessWidget {
         itemCount: photos.length,
         separatorBuilder: (_, __) => const SizedBox(width: 6),
         itemBuilder: (context, index) {
-          final bytes = base64Decode(photos[index]);
+          final bytes = _decodedPhoto(photos[index]);
           return InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: () => _openPhoto(context, bytes),

@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/journal_entry.dart';
 import '../services/cloud_sync_service.dart';
+import '../services/device_language.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 
@@ -97,6 +99,29 @@ class AppState extends ChangeNotifier {
   /// every launch after the first, same as anything else here.
   String? profilePhotoBase64;
 
+  // Cached decode of [profilePhotoBase64] — every screen showing this
+  // photo (the top bar on literally every screen, Settings, Insights'
+  // welcome card) used to call base64Decode() itself, fresh, inside its
+  // own build(), so the same bytes got decoded again on every single
+  // rebuild triggered by *any* AppState change anywhere in the app, not
+  // just when the photo itself changed. Re-decoding lazily here only
+  // when the source string has actually changed since the last read
+  // (covers every mutation path — setProfilePhoto below and _restore's
+  // own direct assignment alike — without needing to intercept each one)
+  // means the expensive part only ever happens once per real change.
+  Uint8List? _cachedProfilePhotoBytes;
+  String? _cachedProfilePhotoBase64;
+
+  Uint8List? get profilePhotoBytes {
+    final base64 = profilePhotoBase64;
+    if (base64 == null) return null;
+    if (_cachedProfilePhotoBase64 != base64) {
+      _cachedProfilePhotoBase64 = base64;
+      _cachedProfilePhotoBytes = base64Decode(base64);
+    }
+    return _cachedProfilePhotoBytes;
+  }
+
   void setProfilePhoto(String? base64) {
     debugPrint('AppState.setProfilePhoto($uid): called with ${base64 == null ? 'null (removing)' : 'a photo (${base64.length} chars)'}');
     profilePhotoBase64 = base64;
@@ -132,7 +157,18 @@ class AppState extends ChangeNotifier {
   /// pattern as [pendingCheckIn]/[justAddedEntryId].
   bool _tourReplayRequested = false;
 
-  void requestTourReplay() => _tourReplayRequested = true;
+  void requestTourReplay() {
+    debugPrint('[AppState] requestTourReplay() called — setting flag and notifying listeners');
+    _tourReplayRequested = true;
+    // Unlike takeTourReplayRequested (a plain consuming getter),
+    // *setting* this has to notify — HomeShell only re-checks the flag
+    // inside its own build(), and simply popping back to it doesn't by
+    // itself trigger one. Without this, the tour silently waited for
+    // some unrelated later rebuild (e.g. switching tabs) to happen to
+    // stumble onto the flag, instead of starting right away. Matches
+    // handOffCheckInToJournal, the same "signal HomeShell to act" shape.
+    notifyListeners();
+  }
 
   bool takeTourReplayRequested() {
     final requested = _tourReplayRequested;
@@ -157,9 +193,17 @@ class AppState extends ChangeNotifier {
   /// The Aura chat transcript — persisted so leaving and reopening the
   /// chat (or reloading the app) picks back up where it left off instead
   /// of resetting to just the opening greeting every time.
+  ///
+  /// [defaultAuraGreeting] itself is always stored/persisted in fixed
+  /// English, same reasoning as [Mood.label] — it's a comparison anchor
+  /// (AuraChatScreen's _Bubble uses it to recognize "this is still the
+  /// untouched default greeting" and show a properly localized version
+  /// instead), not display text on its own, so it has to stay stable
+  /// across a language switch rather than silently being whatever
+  /// language happened to be active the moment this list was created.
   final List<AuraChatMessage> auraMessages = [
     const AuraChatMessage(
-        text: "Hi there! I'm Aura, your mindful companion. How are you feeling today?", fromAura: true),
+        text: defaultAuraGreeting, fromAura: true),
   ];
 
   // Keeps the persisted transcript (and the local-storage blob it's saved
@@ -184,8 +228,7 @@ class AppState extends ChangeNotifier {
   void clearAuraMessages() {
     auraMessages
       ..clear()
-      ..add(const AuraChatMessage(
-          text: "Hi there! I'm Aura, your mindful companion. How are you feeling today?", fromAura: true));
+      ..add(const AuraChatMessage(text: defaultAuraGreeting, fromAura: true));
     notifyListeners();
     _persist();
   }
@@ -200,17 +243,27 @@ class AppState extends ChangeNotifier {
   String? dailyReflectionPrompt;
   String? _dailyReflectionDate;
 
-  /// The cached prompt if it's still for *today* — null otherwise (either
-  /// nothing's been generated yet, or the cached one is from a previous
-  /// day and needs replacing).
-  String? get todaysReflectionPrompt {
+  /// The UI language the cached [dailyReflectionPrompt] was generated in.
+  /// Kept alongside [_dailyReflectionDate] (not just the date alone) so
+  /// switching languages mid-day regenerates a prompt in the new
+  /// language immediately, instead of showing yesterday's — or this
+  /// morning's — cached text in whatever language it happened to be
+  /// written in until the date rolls over.
+  String? _dailyReflectionLanguage;
+
+  /// The cached prompt if it's still for *today*, in [languageCode] —
+  /// null otherwise (nothing's been generated yet, the cached one is
+  /// from a previous day, or the language has since changed).
+  String? todaysReflectionPrompt(String languageCode) {
     final today = _dateKey(DateTime.now());
-    return _dailyReflectionDate == today ? dailyReflectionPrompt : null;
+    final matches = _dailyReflectionDate == today && _dailyReflectionLanguage == languageCode;
+    return matches ? dailyReflectionPrompt : null;
   }
 
-  void setTodaysReflectionPrompt(String prompt) {
+  void setTodaysReflectionPrompt(String prompt, String languageCode) {
     dailyReflectionPrompt = prompt;
     _dailyReflectionDate = _dateKey(DateTime.now());
+    _dailyReflectionLanguage = languageCode;
     notifyListeners();
     _persist();
   }
@@ -277,23 +330,83 @@ class AppState extends ChangeNotifier {
 
   final List<JournalEntry> _entries = [];
 
+  // Every getter/method below this point that scans or sorts _entries used
+  // to redo that full scan-and-sort on *every single call* — including
+  // from inside build() on Journal, Insights, Calendar, Entry Detail, and
+  // Weekly Detail, several of which call it once per rebuild and one
+  // (Calendar) used to call the day-scoped version once per grid cell
+  // before its own separate fix. Since AppStateScope's InheritedNotifier
+  // means literally any AppState change (not just an entries edit —
+  // toggling a setting, Aura sending a reply, ...) rebuilds every screen
+  // reading it, this full rescan was happening far more often than the
+  // entries list actually changes. These fields cache each shape lazily
+  // (built on first access after a change, not eagerly on every change),
+  // and notifyListeners is overridden below to invalidate all of them
+  // together — cheap to do unconditionally on every notify (just
+  // discarding a few list/map references) even though most notifies have
+  // nothing to do with entries at all, since it guarantees these can
+  // never go stale without needing every one of the many _entries
+  // mutation sites elsewhere in this file to separately remember to
+  // invalidate the right ones.
+  List<JournalEntry>? _cachedEntries;
+  List<JournalEntry>? _cachedDeletedEntries;
+  Map<String, List<JournalEntry>>? _cachedEntriesByDay;
+  Map<String, List<JournalEntry>>? _cachedDeletedEntriesByDay;
+
+  @override
+  void notifyListeners() {
+    _cachedEntries = null;
+    _cachedDeletedEntries = null;
+    _cachedEntriesByDay = null;
+    _cachedDeletedEntriesByDay = null;
+    super.notifyListeners();
+  }
+
+  // year-month-day only (matching JournalEntry.isSameDay's own comparison)
+  // — the actual grouping key, not meant to be read as a real date string.
+  static String _dayKey(DateTime d) => '${d.year}-${d.month}-${d.day}';
+
   /// Live (non-deleted) entries, newest first.
   List<JournalEntry> get entries => List.unmodifiable(
-        _entries.where((e) => !e.isDeleted).toList()..sort((a, b) => b.dateTime.compareTo(a.dateTime)),
+        _cachedEntries ??= (_entries.where((e) => !e.isDeleted).toList()
+          ..sort((a, b) => b.dateTime.compareTo(a.dateTime))),
       );
 
   /// Soft-deleted entries, most recently deleted first — backs the
   /// "Deleted Entries" history screen.
   List<JournalEntry> get deletedEntries => List.unmodifiable(
-        _entries.where((e) => e.isDeleted).toList()..sort((a, b) => b.deletedAt!.compareTo(a.deletedAt!)),
+        _cachedDeletedEntries ??= (_entries.where((e) => e.isDeleted).toList()
+          ..sort((a, b) => b.deletedAt!.compareTo(a.deletedAt!))),
       );
+
+  Map<String, List<JournalEntry>> get _entriesByDay => _cachedEntriesByDay ??= () {
+        final map = <String, List<JournalEntry>>{};
+        for (final e in _entries) {
+          if (e.isDeleted) continue;
+          (map[_dayKey(e.dateTime)] ??= []).add(e);
+        }
+        for (final list in map.values) {
+          list.sort((a, b) => a.dateTime.compareTo(b.dateTime));
+        }
+        return map;
+      }();
+
+  Map<String, List<JournalEntry>> get _deletedEntriesByDay => _cachedDeletedEntriesByDay ??= () {
+        final map = <String, List<JournalEntry>>{};
+        for (final e in _entries) {
+          if (!e.isDeleted) continue;
+          (map[_dayKey(e.dateTime)] ??= []).add(e);
+        }
+        for (final list in map.values) {
+          list.sort((a, b) => b.deletedAt!.compareTo(a.deletedAt!));
+        }
+        return map;
+      }();
 
   /// Soft-deleted entries whose *original* date (not deletion date) was
   /// [day] — History is scoped per day rather than showing everything
   /// ever deleted, so it matches whichever day you were looking at.
-  List<JournalEntry> deletedEntriesOn(DateTime day) =>
-      _entries.where((e) => e.isDeleted && e.isSameDay(day)).toList()
-        ..sort((a, b) => b.deletedAt!.compareTo(a.deletedAt!));
+  List<JournalEntry> deletedEntriesOn(DateTime day) => _deletedEntriesByDay[_dayKey(day)] ?? const [];
 
   /// Per-day cap on how many deleted entries can pile up in History —
   /// checked before a live entry is swiped/deleted (it lands in the same
@@ -304,9 +417,7 @@ class AppState extends ChangeNotifier {
 
   bool hasReachedDeletedCap(DateTime day) => deletedEntriesOn(day).length >= maxDeletedEntriesPerDay;
 
-  List<JournalEntry> entriesOn(DateTime day) =>
-      _entries.where((e) => !e.isDeleted && e.isSameDay(day)).toList()
-        ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+  List<JournalEntry> entriesOn(DateTime day) => _entriesByDay[_dayKey(day)] ?? const [];
 
   void addEntry(JournalEntry entry) {
     _entries.add(entry);
@@ -606,6 +717,11 @@ class AppState extends ChangeNotifier {
 
   void setLanguageCode(String? code) {
     languageCode = code;
+    // Also remembered device-wide (not just on this account's own
+    // profile) — see DeviceLanguage's doc for why: otherwise signing out
+    // dropped straight back to whatever language the device's system
+    // settings happen to be in, ignoring the choice just made here.
+    DeviceLanguage.set(code);
     notifyListeners();
     _persist();
   }
@@ -616,7 +732,16 @@ class AppState extends ChangeNotifier {
     _persist();
   }
 
-  void setNotificationsEnabled(bool value) {
+  // Async now (was fire-and-forget) so callers that care — Settings'
+  // switch, specifically — can await the OS permission request actually
+  // resolving (dialog shown and answered, or silently skipped because
+  // it's already been decided) before reading permission status back.
+  // Reading it right after calling this without awaiting used to just
+  // capture the stale "not yet asked" snapshot from the instant before
+  // the request even reached the OS. Callers that don't need to know when
+  // this finishes (main.dart's own startup reschedule) can still just not
+  // await it.
+  Future<void> setNotificationsEnabled(bool value) async {
     notificationsEnabled = value;
     notifyListeners();
     _persist();
@@ -625,9 +750,9 @@ class AppState extends ChangeNotifier {
     // if permission hasn't been granted yet (requestPermission is part of
     // scheduleDailyReminder's own flow).
     if (value) {
-      NotificationService.scheduleDailyReminder();
+      await NotificationService.scheduleDailyReminder();
     } else {
-      NotificationService.cancelDailyReminder();
+      await NotificationService.cancelDailyReminder();
     }
   }
 
@@ -721,6 +846,13 @@ class AppState extends ChangeNotifier {
       auraEnabled = map['aura'] as bool? ?? true;
       notificationsEnabled = map['notif'] as bool? ?? true;
       languageCode = map['lang'] as String?;
+      // Syncs the device-wide language memory too — covers signing in on
+      // a device that's never had a local choice of its own, but whose
+      // account already prefers a language via the cloud. Otherwise
+      // signing out on *this* device right after that first sign-in
+      // would still fall back to the device's system locale instead of
+      // the account's own preference it just picked up.
+      if (languageCode != null) DeviceLanguage.set(languageCode);
       hasSeenAuraHint = map['auraHintSeen'] as bool? ?? false;
       hasSeenTour = map['tourSeen'] as bool? ?? false;
       geminiApiKey = map['geminiApiKey'] as String?;
@@ -728,6 +860,7 @@ class AppState extends ChangeNotifier {
       profilePhotoBase64 = map['profilePhoto'] as String?;
       dailyReflectionPrompt = map['dailyReflectionPrompt'] as String?;
       _dailyReflectionDate = map['dailyReflectionDate'] as String?;
+      _dailyReflectionLanguage = map['dailyReflectionLanguage'] as String?;
       final savedAuraMessages = map['auraMessages'] as List<dynamic>?;
       if (savedAuraMessages != null && savedAuraMessages.isNotEmpty) {
         auraMessages
@@ -857,6 +990,7 @@ class AppState extends ChangeNotifier {
       'userName': userName,
       'dailyReflectionPrompt': dailyReflectionPrompt,
       'dailyReflectionDate': _dailyReflectionDate,
+      'dailyReflectionLanguage': _dailyReflectionLanguage,
       'auraMessages': auraMessages.map((m) => {'text': m.text, 'fromAura': m.fromAura}).toList(),
       'entries': _entries.map(_entryToJson).toList(),
     };
@@ -912,6 +1046,11 @@ class AuraChatMessage {
   final String text;
   final bool fromAura;
 }
+
+/// The fixed, always-English text every fresh Aura transcript starts
+/// with (and resets back to on Clear) — see [AppState.auraMessages]'s
+/// doc for why this is a comparison anchor, not display text.
+const defaultAuraGreeting = "Hi there! I'm Aura, your mindful companion. How are you feeling today?";
 
 /// A staged-but-not-yet-saved check-in, handed from Today to Journal. See
 /// [AppState.pendingCheckIn].

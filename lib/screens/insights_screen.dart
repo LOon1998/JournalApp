@@ -1,14 +1,10 @@
-import 'dart:convert';
-
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:showcaseview/showcaseview.dart';
 import '../data/app_state.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/journal_entry.dart';
-import '../services/app_tour.dart';
 import '../services/gemini_service.dart';
 import '../theme/activity_icons.dart';
 import '../theme/app_theme.dart';
@@ -185,11 +181,9 @@ class _WelcomeBackCard extends StatelessWidget {
               child: CircleAvatar(
                 radius: 28,
                 backgroundColor: scheme.primaryContainer,
-                backgroundImage: appState.profilePhotoBase64 != null
-                    ? MemoryImage(base64Decode(appState.profilePhotoBase64!))
-                    : null,
-                child: appState.profilePhotoBase64 == null
-                    ? Icon(Icons.self_improvement, size: 28, color: scheme.onPrimaryContainer)
+                backgroundImage: appState.profilePhotoBytes != null ? MemoryImage(appState.profilePhotoBytes!) : null,
+                child: appState.profilePhotoBytes == null
+                    ? Icon(Icons.person, size: 28, color: scheme.onPrimaryContainer)
                     : null,
               ),
             ),
@@ -250,11 +244,7 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
       onTapOutside: (_) {
         if (_selectedMood != null) setState(() => _selectedMood = null);
       },
-      child: Showcase(
-        key: TourKeys.checkInCard,
-        description: AppTour.checkInCardText(context),
-        targetBorderRadius: const BorderRadius.all(Radius.circular(32)),
-        child: Container(
+      child: Container(
         margin: const EdgeInsets.only(bottom: 24),
         clipBehavior: Clip.antiAlias,
         // Darker, fixed teal — not scheme.primaryContainer (a pale
@@ -398,7 +388,6 @@ class _QuickCheckInCardState extends State<_QuickCheckInCard> {
             ],
           ),
         ),
-      ),
     );
   }
 }
@@ -696,12 +685,23 @@ class _WeeklyTrendCardState extends State<_WeeklyTrendCard> with TickerProviderS
     return List.generate(7, (i) => DateTime(now.year, now.month, now.day).subtract(Duration(days: 6 - i)));
   }
 
-  List<double?> _localAverages(List<DateTime> last7Days) => last7Days.map((day) {
-        final dayEntries = widget.entries.where((e) => e.isSameDay(day)).toList();
-        if (dayEntries.isEmpty) return null;
-        final avg = dayEntries.map((e) => moodScore[e.mood]!).reduce((a, b) => a + b) / dayEntries.length;
-        return avg;
-      }).toList();
+  List<double?> _localAverages(List<DateTime> last7Days) {
+    // Grouped once instead of scanning widget.entries (the app's *entire*
+    // history, not just this week's) fresh for each of the 7 days below —
+    // same fix, smaller scale, as Calendar's own month-grid version of
+    // this same pattern.
+    final entriesByDay = <DateTime, List<JournalEntry>>{};
+    for (final entry in widget.entries) {
+      final day = DateTime(entry.dateTime.year, entry.dateTime.month, entry.dateTime.day);
+      (entriesByDay[day] ??= []).add(entry);
+    }
+    return last7Days.map((day) {
+      final dayEntries = entriesByDay[day];
+      if (dayEntries == null || dayEntries.isEmpty) return null;
+      final avg = dayEntries.map((e) => moodScore[e.mood]!).reduce((a, b) => a + b) / dayEntries.length;
+      return avg;
+    }).toList();
+  }
 
   // Key Takeaway's default caption — computed from the local averages
   // alone (no API, no written-text analysis, just arithmetic), so there's
@@ -935,7 +935,7 @@ class _WeeklyTrendCardState extends State<_WeeklyTrendCard> with TickerProviderS
 /// Weekly Detail screen (static — pass a non-animating [breathe] like
 /// `kAlwaysCompleteAnimation` there, since a whole dedicated screen
 /// doesn't need the "this is live" cue the small embedded card does).
-class TrendChart extends StatelessWidget {
+class TrendChart extends StatefulWidget {
   const TrendChart({
     super.key,
     required this.values,
@@ -959,17 +959,37 @@ class TrendChart extends StatelessWidget {
   final bool enableTooltips;
 
   @override
+  State<TrendChart> createState() => _TrendChartState();
+}
+
+class _TrendChartState extends State<TrendChart> {
+  // Which dot's tooltip/indicator line stays pinned on screen — set by a
+  // tap, and left showing until a different tap moves it (tapping the
+  // same dot again unpins it). fl_chart's own built-in touch handling
+  // only ever shows this while a finger is actively down, clearing it
+  // the instant one lifts — handleBuiltInTouches: false plus this state,
+  // fed back into showingIndicators/showingTooltipIndicators below,
+  // replaces that with something that actually persists.
+  int? _touchedIndex;
+
+  @override
   Widget build(BuildContext context) {
     final spots = [
-      for (var i = 0; i < values.length; i++)
-        if (values[i] != null) FlSpot(i.toDouble(), values[i]!),
+      for (var i = 0; i < widget.values.length; i++)
+        if (widget.values[i] != null) FlSpot(i.toDouble(), widget.values[i]!),
     ];
     final lastSpotIndex = spots.length - 1;
+    // Clamped against the current spot count in case a still-pinned tap
+    // outlives the data it pointed at (a new day's worth of entries
+    // loading in, say) — an out-of-range index would otherwise throw
+    // instead of just quietly showing nothing.
+    final pinnedIndex =
+        _touchedIndex != null && _touchedIndex! >= 0 && _touchedIndex! < spots.length ? _touchedIndex : null;
 
     return AnimatedBuilder(
-      animation: breathe,
+      animation: widget.breathe,
       builder: (context, _) {
-        final t = breathe.value; // eases 0 -> 1 -> 0 continuously
+        final t = widget.breathe.value; // eases 0 -> 1 -> 0 continuously
         // Dark mode uses a deep forest green (the dark scheme's own
         // primaryContainer, not the light minty primary) instead of the
         // light mode's brand green — that light mint sat too close to
@@ -978,8 +998,8 @@ class TrendChart extends StatelessWidget {
         // clearly different shade of the same green family reads as
         // distinct from every (now also-darkened, see getDotPainter
         // below) mood dot without abandoning the brand color entirely.
-        final isDark = scheme.brightness == Brightness.dark;
-        final lineColor = isDark ? scheme.primaryContainer : scheme.primary;
+        final isDark = widget.scheme.brightness == Brightness.dark;
+        final lineColor = isDark ? widget.scheme.primaryContainer : widget.scheme.primary;
         // primaryContainer already reads as the "fill" shade in both
         // modes (a pale wash in light mode, a deep forest green in dark
         // mode via the M3 dark-scheme convention of inverting container
@@ -989,7 +1009,7 @@ class TrendChart extends StatelessWidget {
         // the way a "dissolve" effect needs a vivid starting point to fade
         // *from* — plain primaryContainer alone was too pale to look like
         // anything was dissolving.
-        final fillBase = Color.lerp(scheme.primaryContainer, lineColor, 0.45)!;
+        final fillBase = Color.lerp(widget.scheme.primaryContainer, lineColor, 0.45)!;
         final fillTopAlpha = 0.55 + 0.25 * t;
         // The last dot both shines (a wider, brightening ring) and
         // breathes (a modest size pulse) — kept small (4 to 6, not the
@@ -1002,11 +1022,82 @@ class TrendChart extends StatelessWidget {
         // only partway (t * 0.5, not the full 0-1 range) so the brightest
         // point of the pulse stays a gentle glow instead of swinging all
         // the way to a stark, high-contrast bright color.
-        final lastDotShine = Color.lerp(lineColor, isDark ? scheme.onSurface : scheme.primaryContainer, t * 0.5)!;
+        final lastDotShine =
+            Color.lerp(lineColor, isDark ? widget.scheme.onSurface : widget.scheme.primaryContainer, t * 0.5)!;
+        final barData = LineChartBarData(
+          spots: spots,
+          isCurved: true,
+          curveSmoothness: 0.35,
+          // Otherwise the smoothed curve can swing past a point's
+          // actual value right around the first/last dot (and any
+          // sharp peak/valley), overshooting before settling —
+          // this clamps it so the line always stays anchored
+          // cleanly to each real value instead.
+          preventCurveOverShooting: true,
+          color: lineColor,
+          barWidth: 2.5,
+          dotData: FlDotData(
+            show: true,
+            // Each dot's fill is always the mood's own full-
+            // brightness pastel swatch, same in light and dark mode
+            // — darkening it in dark mode (an earlier version of
+            // this) made it blend into the dark card background
+            // instead of standing out. The line itself is already a
+            // distinct deep green ([lineColor]) so there's no
+            // ambiguity between line and dot without needing to
+            // mute the dot too. The most recent day's dot also
+            // shines with [breathe] — same size as the rest, just a
+            // glowing, brightening ring.
+            getDotPainter: (spot, percent, bar, index) {
+              // Plain, unboosted mood color — same as the legend
+              // below the chart, so the two actually match instead
+              // of the dots looking like a different, more
+              // saturated shade of the color the legend shows.
+              final moodColor = moodColorForScore(spot.y);
+              final isLast = index == lastSpotIndex;
+              return FlDotCirclePainter(
+                radius: isLast ? lastDotRadius : 4,
+                color: moodColor,
+                strokeWidth: isLast ? lastDotStrokeWidth : 2.5,
+                // Same green as the graph line itself, in both
+                // modes — no separate white-ring treatment for dark
+                // mode.
+                strokeColor: isLast ? lastDotShine : lineColor,
+              );
+            },
+          ),
+          // Driven by our own pinned-tap state, not fl_chart's built-in
+          // touch tracking — see _touchedIndex's own doc.
+          showingIndicators: pinnedIndex != null ? [pinnedIndex] : [],
+          belowBarData: BarAreaData(
+            show: true,
+            // A "dissolve" fade rather than a plain linear one — an
+            // eased (roughly quadratic) alpha falloff across 5 stops
+            // instead of straight-line interpolation between just 2
+            // or 3. A true linear fade reads as thinning out at a
+            // constant rate the whole way down; easing it instead
+            // keeps the color looking solid for a beat right under
+            // the curve, then dissolves away increasingly quickly —
+            // much closer to how color actually looks like it's
+            // fading into nothing, rather than a flat gradient.
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: const [0, 0.15, 0.35, 0.6, 1],
+              colors: [
+                fillBase.withValues(alpha: fillTopAlpha),
+                fillBase.withValues(alpha: fillTopAlpha * 0.72),
+                fillBase.withValues(alpha: fillTopAlpha * 0.42),
+                fillBase.withValues(alpha: fillTopAlpha * 0.16),
+                fillBase.withValues(alpha: 0),
+              ],
+            ),
+          ),
+        );
         return LineChart(
           LineChartData(
             minX: 0,
-            maxX: (values.length - 1).toDouble(),
+            maxX: (widget.values.length - 1).toDouble(),
             // 0 and 6 pad the real 1-5 mood range so the top/bottom dots
             // aren't flush against the chart edge, while still landing
             // gridlines/labels on whole numbers — those two just render
@@ -1018,15 +1109,28 @@ class TrendChart extends StatelessWidget {
               drawVerticalLine: false,
               horizontalInterval: 1,
               getDrawingHorizontalLine: (_) =>
-                  FlLine(color: scheme.outlineVariant.withValues(alpha: 0.4), strokeWidth: 1),
+                  FlLine(color: widget.scheme.outlineVariant.withValues(alpha: 0.4), strokeWidth: 1),
             ),
             titlesData: const FlTitlesData(show: false),
             borderData: FlBorderData(show: false),
-            // Tapping/touching a dot shows which day and mood it is —
-            // the dot alone doesn't say that on its own.
-            lineTouchData: enableTooltips
+            // Tapping a dot pins its tooltip/indicator line in place
+            // (see _touchedIndex's own doc for why handleBuiltInTouches
+            // is off and touchCallback drives our own state instead of
+            // fl_chart's default touch-only display).
+            lineTouchData: widget.enableTooltips
                 ? LineTouchData(
                     enabled: true,
+                    handleBuiltInTouches: false,
+                    touchCallback: (event, response) {
+                      final isRelease = event is FlTapUpEvent || event is FlPanEndEvent || event is FlLongPressEnd;
+                      if (!isRelease) return;
+                      final touchedSpots = response?.lineBarSpots;
+                      if (touchedSpots == null || touchedSpots.isEmpty) return;
+                      final spotIndex = touchedSpots.first.spotIndex;
+                      // Tapping the already-pinned dot again unpins it,
+                      // rather than just re-pinning the same one.
+                      setState(() => _touchedIndex = _touchedIndex == spotIndex ? null : spotIndex);
+                    },
                     // A thin dashed dropline down to the axis, but no
                     // extra indicator dot at the bottom of it — the
                     // solid version (fl_chart's default) plus an
@@ -1042,85 +1146,24 @@ class TrendChart extends StatelessWidget {
                       tooltipRoundedRadius: 12,
                       tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       getTooltipItems: (touchedSpots) => touchedSpots.map((touched) {
-                        final day = last7Days[touched.x.toInt()];
+                        final day = widget.last7Days[touched.x.toInt()];
                         final mood = scoreToMood[touched.y.round().clamp(1, 5)]!;
                         return LineTooltipItem(
                           '${weekdayAbbrev(context, day)} · ${mood.emoji} ${moodLabel(context, mood)}',
-                          TextStyle(color: scheme.onInverseSurface, fontWeight: FontWeight.w700, fontSize: 12),
+                          TextStyle(color: widget.scheme.onInverseSurface, fontWeight: FontWeight.w700, fontSize: 12),
                         );
                       }).toList(),
                     ),
                   )
                 : const LineTouchData(enabled: false),
-            lineBarsData: [
-              LineChartBarData(
-                spots: spots,
-                isCurved: true,
-                curveSmoothness: 0.35,
-                // Otherwise the smoothed curve can swing past a point's
-                // actual value right around the first/last dot (and any
-                // sharp peak/valley), overshooting before settling —
-                // this clamps it so the line always stays anchored
-                // cleanly to each real value instead.
-                preventCurveOverShooting: true,
-                color: lineColor,
-                barWidth: 2.5,
-                dotData: FlDotData(
-                  show: true,
-                  // Each dot's fill is always the mood's own full-
-                  // brightness pastel swatch, same in light and dark mode
-                  // — darkening it in dark mode (an earlier version of
-                  // this) made it blend into the dark card background
-                  // instead of standing out. The line itself is already a
-                  // distinct deep green ([lineColor]) so there's no
-                  // ambiguity between line and dot without needing to
-                  // mute the dot too. The most recent day's dot also
-                  // shines with [breathe] — same size as the rest, just a
-                  // glowing, brightening ring.
-                  getDotPainter: (spot, percent, bar, index) {
-                    // Plain, unboosted mood color — same as the legend
-                    // below the chart, so the two actually match instead
-                    // of the dots looking like a different, more
-                    // saturated shade of the color the legend shows.
-                    final moodColor = moodColorForScore(spot.y);
-                    final isLast = index == lastSpotIndex;
-                    return FlDotCirclePainter(
-                      radius: isLast ? lastDotRadius : 4,
-                      color: moodColor,
-                      strokeWidth: isLast ? lastDotStrokeWidth : 2.5,
-                      // Same green as the graph line itself, in both
-                      // modes — no separate white-ring treatment for dark
-                      // mode.
-                      strokeColor: isLast ? lastDotShine : lineColor,
-                    );
-                  },
-                ),
-                belowBarData: BarAreaData(
-                  show: true,
-                  // A "dissolve" fade rather than a plain linear one — an
-                  // eased (roughly quadratic) alpha falloff across 5 stops
-                  // instead of straight-line interpolation between just 2
-                  // or 3. A true linear fade reads as thinning out at a
-                  // constant rate the whole way down; easing it instead
-                  // keeps the color looking solid for a beat right under
-                  // the curve, then dissolves away increasingly quickly —
-                  // much closer to how color actually looks like it's
-                  // fading into nothing, rather than a flat gradient.
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    stops: const [0, 0.15, 0.35, 0.6, 1],
-                    colors: [
-                      fillBase.withValues(alpha: fillTopAlpha),
-                      fillBase.withValues(alpha: fillTopAlpha * 0.72),
-                      fillBase.withValues(alpha: fillTopAlpha * 0.42),
-                      fillBase.withValues(alpha: fillTopAlpha * 0.16),
-                      fillBase.withValues(alpha: 0),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+            lineBarsData: [barData],
+            // Same pinned state driving the tooltip bubble itself, not
+            // just the dashed indicator line above.
+            showingTooltipIndicators: pinnedIndex != null
+                ? [
+                    ShowingTooltipIndicators([LineBarSpot(barData, 0, spots[pinnedIndex])]),
+                  ]
+                : [],
           ),
           // No implicit animation on top of the explicit per-frame
           // rebuild above — swapping duration to zero avoids fl_chart

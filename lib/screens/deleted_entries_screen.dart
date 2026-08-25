@@ -36,8 +36,12 @@ class _DeletedEntriesScreenState extends State<DeletedEntriesScreen> {
     final l10n = AppLocalizations.of(context)!;
     final appState = AppStateScope.of(context);
     final deleted = appState.deletedEntriesOn(widget.day);
-    final pageCount = deleted.isEmpty ? 0 : (deleted.length / _entriesPerPage).ceil();
-    final page = pageCount == 0 ? 0 : (_currentPageIndex ?? 0).clamp(0, pageCount - 1);
+    final pageCount = deleted.isEmpty
+        ? 0
+        : (deleted.length / _entriesPerPage).ceil();
+    final page = pageCount == 0
+        ? 0
+        : (_currentPageIndex ?? 0).clamp(0, pageCount - 1);
     final pageStart = page * _entriesPerPage;
     final pageEnd = (pageStart + _entriesPerPage).clamp(0, deleted.length);
     final pageEntries = deleted.sublist(pageStart, pageEnd);
@@ -48,101 +52,167 @@ class _DeletedEntriesScreenState extends State<DeletedEntriesScreen> {
         title: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(l10n.deletedEntriesTitle,
-                style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600, fontSize: 20)),
-            Text(DateFormat.yMMMMd().format(widget.day),
-                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w500)),
+            Text(
+              l10n.deletedEntriesTitle,
+              style: TextStyle(
+                color: scheme.primary,
+                fontWeight: FontWeight.w600,
+                fontSize: 20,
+              ),
+            ),
+            Text(
+              DateFormat.yMMMMd(
+                Localizations.localeOf(context).toString(),
+              ).format(widget.day),
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ],
         ),
         centerTitle: true,
         actions: [
           TextButton.icon(
-            onPressed: deleted.isEmpty ? null : () => _confirmClearAll(context, appState, deleted.length),
-            icon: Icon(Icons.delete_sweep, size: 18, color: deleted.isEmpty ? scheme.outlineVariant : scheme.error),
-            label: Text(l10n.deletedEntriesClearAll,
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: deleted.isEmpty ? scheme.outlineVariant : scheme.error)),
+            onPressed: deleted.isEmpty
+                ? null
+                : () => _confirmClearAll(context, appState, deleted.length),
+            icon: Icon(
+              Icons.delete_sweep,
+              size: 18,
+              color: deleted.isEmpty ? scheme.outlineVariant : scheme.error,
+            ),
+            label: Text(
+              l10n.deletedEntriesClearAll,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: deleted.isEmpty ? scheme.outlineVariant : scheme.error,
+              ),
+            ),
           ),
         ],
       ),
-      body: deleted.isEmpty
-          ? _EmptyState(scheme: scheme, day: widget.day)
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-              children: [
-                Text(l10n.deletedEntriesSlotsUsed(deleted.length, AppState.maxDeletedEntriesPerDay),
-                    style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
-                const SizedBox(height: 2),
-                Text(l10n.deletedEntriesExpiryNote(AppState.deletedEntryExpiry.inDays),
-                    style: TextStyle(fontSize: 11, color: scheme.outline)),
-                const SizedBox(height: 12),
-                for (final entry in pageEntries)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: _DeletedEntryCard(entry: entry),
+      // SafeArea — a pushed screen with no bottom nav bar of its own, same
+      // reasoning as Settings/Weekly Detail/Entry Detail's own fix for
+      // the same gesture-bar clipping.
+      body: SafeArea(
+        child: deleted.isEmpty
+            ? _EmptyState(scheme: scheme, day: widget.day)
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+                children: [
+                  Text(
+                    l10n.deletedEntriesSlotsUsed(
+                      deleted.length,
+                      AppState.maxDeletedEntriesPerDay,
+                    ),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
-                if (pageCount > 1)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Visibility(
-                        visible: page > 0,
-                        maintainSize: true,
-                        maintainAnimation: true,
-                        maintainState: true,
-                        child: IconButton(
-                          onPressed: page > 0 ? () => setState(() => _currentPageIndex = page - 1) : null,
-                          icon: const Icon(Icons.chevron_left),
-                          visualDensity: VisualDensity.compact,
-                          tooltip: l10n.deletedEntriesPrevPage,
-                        ),
-                      ),
-                      for (var i = 0; i < pageCount; i++)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 3),
-                          child: Container(
-                            width: 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: i == page ? scheme.primary : scheme.surfaceContainerHighest,
-                            ),
+                  const SizedBox(height: 2),
+                  Text(
+                    l10n.deletedEntriesExpiryNote(
+                      AppState.deletedEntryExpiry.inDays,
+                    ),
+                    style: TextStyle(fontSize: 11, color: scheme.outline),
+                  ),
+                  const SizedBox(height: 12),
+                  for (final entry in pageEntries)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: _DeletedEntryCard(entry: entry),
+                    ),
+                  if (pageCount > 1)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Visibility(
+                          visible: page > 0,
+                          maintainSize: true,
+                          maintainAnimation: true,
+                          maintainState: true,
+                          child: IconButton(
+                            onPressed: page > 0
+                                ? () => setState(
+                                    () => _currentPageIndex = page - 1,
+                                  )
+                                : null,
+                            icon: const Icon(Icons.chevron_left),
+                            visualDensity: VisualDensity.compact,
+                            tooltip: l10n.deletedEntriesPrevPage,
                           ),
                         ),
-                      Visibility(
-                        visible: page < pageCount - 1,
-                        maintainSize: true,
-                        maintainAnimation: true,
-                        maintainState: true,
-                        child: IconButton(
-                          onPressed:
-                              page < pageCount - 1 ? () => setState(() => _currentPageIndex = page + 1) : null,
-                          icon: const Icon(Icons.chevron_right),
-                          visualDensity: VisualDensity.compact,
-                          tooltip: l10n.deletedEntriesNextPage,
+                        for (var i = 0; i < pageCount; i++)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 3),
+                            child: Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: i == page
+                                    ? scheme.primary
+                                    : scheme.surfaceContainerHighest,
+                              ),
+                            ),
+                          ),
+                        Visibility(
+                          visible: page < pageCount - 1,
+                          maintainSize: true,
+                          maintainAnimation: true,
+                          maintainState: true,
+                          child: IconButton(
+                            onPressed: page < pageCount - 1
+                                ? () => setState(
+                                    () => _currentPageIndex = page + 1,
+                                  )
+                                : null,
+                            icon: const Icon(Icons.chevron_right),
+                            visualDensity: VisualDensity.compact,
+                            tooltip: l10n.deletedEntriesNextPage,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
+                      ],
+                    ),
+                ],
+              ),
+      ),
     );
   }
 
-  void _confirmClearAll(BuildContext context, AppState appState, int count) async {
+  void _confirmClearAll(
+    BuildContext context,
+    AppState appState,
+    int count,
+  ) async {
     final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(l10n.deletedEntriesConfirmClearAllTitle),
-        content: Text(l10n.deletedEntriesConfirmClearAllBody(count, DateFormat.yMMMMd().format(widget.day))),
+        content: Text(
+          l10n.deletedEntriesConfirmClearAllBody(
+            count,
+            DateFormat.yMMMMd(
+              Localizations.localeOf(context).toString(),
+            ).format(widget.day),
+          ),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(l10n.actionCancel)),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.actionCancel),
+          ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text(l10n.deletedEntriesDeleteAll, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            child: Text(
+              l10n.deletedEntriesDeleteAll,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
         ],
       ),
@@ -170,16 +240,31 @@ class _EmptyState extends StatelessWidget {
             Container(
               width: 96,
               height: 96,
-              decoration: BoxDecoration(color: scheme.surfaceContainerLowest, shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerLowest,
+                shape: BoxShape.circle,
+              ),
               alignment: Alignment.center,
-              child: Icon(Icons.delete_sweep, size: 48, color: scheme.outlineVariant),
+              child: Icon(
+                Icons.delete_sweep,
+                size: 48,
+                color: scheme.outlineVariant,
+              ),
             ),
             const SizedBox(height: 16),
-            Text(l10n.deletedEntriesEmptyTitle,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
+            Text(
+              l10n.deletedEntriesEmptyTitle,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 8),
             Text(
-              l10n.deletedEntriesEmptyBody(DateFormat.yMMMMd().format(day)),
+              l10n.deletedEntriesEmptyBody(
+                DateFormat.yMMMMd(
+                  Localizations.localeOf(context).toString(),
+                ).format(day),
+              ),
               textAlign: TextAlign.center,
               style: TextStyle(color: scheme.onSurfaceVariant),
             ),
@@ -210,7 +295,9 @@ class _DeletedEntryCard extends StatelessWidget {
         // outer navigation.
         child: InkWell(
           onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => EntryDetailScreen(entryId: entry.id)),
+            MaterialPageRoute(
+              builder: (_) => EntryDetailScreen(entryId: entry.id),
+            ),
           ),
           child: IntrinsicHeight(
             child: Row(
@@ -229,10 +316,16 @@ class _DeletedEntryCard extends StatelessWidget {
                             Container(
                               width: 40,
                               height: 40,
-                              decoration:
-                                  BoxDecoration(color: scheme.surfaceContainerHighest, shape: BoxShape.circle),
+                              decoration: BoxDecoration(
+                                color: scheme.surfaceContainerHighest,
+                                shape: BoxShape.circle,
+                              ),
                               alignment: Alignment.center,
-                              child: Icon(entry.mood.icon, size: 20, color: scheme.onSurfaceVariant),
+                              child: Icon(
+                                entry.mood.icon,
+                                size: 20,
+                                color: scheme.onSurfaceVariant,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -240,23 +333,38 @@ class _DeletedEntryCard extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       Expanded(
                                         child: Text(
-                                            '${DateFormat.yMMMMd().format(entry.dateTime)} · ${DateFormat('h:mm a').format(entry.dateTime)}',
-                                            style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                                color: scheme.onSurfaceVariant)),
+                                          '${DateFormat.yMMMMd(Localizations.localeOf(context).toString()).format(entry.dateTime)} · ${DateFormat('h:mm a', Localizations.localeOf(context).toString()).format(entry.dateTime)}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: scheme.onSurfaceVariant,
+                                          ),
+                                        ),
                                       ),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 3,
+                                        ),
                                         decoration: BoxDecoration(
-                                            color: scheme.errorContainer, borderRadius: BorderRadius.circular(999)),
-                                        child: Text(l10n.deletedEntriesBadge,
-                                            style: TextStyle(
-                                                fontSize: 11, fontWeight: FontWeight.w600, color: scheme.error)),
+                                          color: scheme.errorContainer,
+                                          borderRadius: BorderRadius.circular(
+                                            999,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          l10n.deletedEntriesBadge,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: scheme.error,
+                                          ),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -264,19 +372,31 @@ class _DeletedEntryCard extends StatelessWidget {
                                   Row(
                                     children: [
                                       Flexible(
-                                        child: Text(entry.title,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleMedium
-                                                ?.copyWith(fontWeight: FontWeight.w700)),
+                                        child: Text(
+                                          entryDisplayTitle(context, entry),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
                                       ),
                                       if (entry.photos.isNotEmpty) ...[
                                         const SizedBox(width: 6),
-                                        Icon(Icons.photo_camera_outlined, size: 15, color: scheme.onSurfaceVariant),
+                                        Icon(
+                                          Icons.photo_camera_outlined,
+                                          size: 15,
+                                          color: scheme.onSurfaceVariant,
+                                        ),
                                       ],
                                       if (entry.voiceNote != null) ...[
                                         const SizedBox(width: 6),
-                                        Icon(Icons.mic, size: 15, color: scheme.onSurfaceVariant),
+                                        Icon(
+                                          Icons.mic,
+                                          size: 15,
+                                          color: scheme.onSurfaceVariant,
+                                        ),
                                       ],
                                     ],
                                   ),
@@ -291,7 +411,10 @@ class _DeletedEntryCard extends StatelessWidget {
                             entry.text,
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant,
+                              height: 1.4,
+                            ),
                           ),
                         ],
                         if (entry.photos.isNotEmpty) ...[
@@ -299,7 +422,10 @@ class _DeletedEntryCard extends StatelessWidget {
                           PhotoStrip(photos: entry.photos),
                         ],
                         const SizedBox(height: 16),
-                        Divider(height: 1, color: scheme.surfaceContainerHighest),
+                        Divider(
+                          height: 1,
+                          color: scheme.surfaceContainerHighest,
+                        ),
                         const SizedBox(height: 12),
                         Row(
                           children: [
@@ -309,12 +435,19 @@ class _DeletedEntryCard extends StatelessWidget {
                                   backgroundColor: scheme.primaryContainer,
                                   foregroundColor: scheme.onPrimaryContainer,
                                   shape: const StadiumBorder(),
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
                                 ),
                                 onPressed: () => _restore(context),
                                 icon: const Icon(Icons.restore, size: 18),
-                                label: Text(l10n.deletedEntriesRestore,
-                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                label: Text(
+                                  l10n.deletedEntriesRestore,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -322,14 +455,26 @@ class _DeletedEntryCard extends StatelessWidget {
                               child: OutlinedButton.icon(
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: scheme.error,
-                                  side: BorderSide(color: scheme.errorContainer),
+                                  side: BorderSide(
+                                    color: scheme.errorContainer,
+                                  ),
                                   shape: const StadiumBorder(),
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
                                 ),
                                 onPressed: () => _confirmDeleteForever(context),
-                                icon: const Icon(Icons.delete_forever, size: 18),
-                                label: Text(l10n.deletedEntriesDeleteForever,
-                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                icon: const Icon(
+                                  Icons.delete_forever,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  l10n.deletedEntriesDeleteForever,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
                             ),
                           ],
@@ -354,10 +499,19 @@ class _DeletedEntryCard extends StatelessWidget {
         context: context,
         builder: (context) => AlertDialog(
           title: Text(l10n.deletedEntriesCantRestoreTitle),
-          content: Text(l10n.deletedEntriesCantRestoreBody(
-              DateFormat.yMMMMd().format(entry.dateTime), AppState.maxDailyEntries)),
+          content: Text(
+            l10n.deletedEntriesCantRestoreBody(
+              DateFormat.yMMMMd(
+                Localizations.localeOf(context).toString(),
+              ).format(entry.dateTime),
+              AppState.maxDailyEntries,
+            ),
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(l10n.actionOk)),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(l10n.actionOk),
+            ),
           ],
         ),
       );
@@ -372,12 +526,22 @@ class _DeletedEntryCard extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(l10n.deletedEntriesDeleteForeverConfirmTitle),
-        content: Text(l10n.deletedEntriesDeleteForeverConfirmBody(entry.title)),
+        content: Text(
+          l10n.deletedEntriesDeleteForeverConfirmBody(
+            entryDisplayTitle(context, entry),
+          ),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(l10n.actionCancel)),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.actionCancel),
+          ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text(l10n.actionDelete, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            child: Text(
+              l10n.actionDelete,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
         ],
       ),
